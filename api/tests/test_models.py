@@ -1,6 +1,8 @@
 from django.test import TestCase
-from .models import UserType, User, ServiceCategory, Service, Order
+from api.models import UserType, User, ServiceCategory, Service, Order
 from datetime import date
+from django.utils import timezone
+from datetime import date, datetime
 
 class ModelTestCase(TestCase):
     def setUp(self):
@@ -15,7 +17,7 @@ class ModelTestCase(TestCase):
             email="john.doe@example.com",
             phone_number="1234567890",
             password="securepassword",
-            registration_date=date.today(),
+            registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
             username="johndoe",
             account_status="Active"
         )
