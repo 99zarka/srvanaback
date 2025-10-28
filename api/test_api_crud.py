@@ -12,7 +12,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 class AuthAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        # Ensure UserType with ID 1 exists for default user_type
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
         self.login_url = '/api/login/'
 
@@ -25,7 +26,7 @@ class AuthAPITests(TestCase):
             "last_name": "User",
             "phone_number": "1234567890",
             "address": "123 Test St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
 
     def test_user_registration(self):
@@ -73,7 +74,7 @@ class AuthAPITests(TestCase):
 class UserTypeAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
 
         # Register a user and get tokens
@@ -86,7 +87,7 @@ class UserTypeAPITests(TestCase):
             "last_name": "User",
             "phone_number": "7777777777",
             "address": "7 UserType St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -135,7 +136,7 @@ class UserTypeAPITests(TestCase):
 class UserAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
         self.login_url = '/api/login/'
 
@@ -149,7 +150,7 @@ class UserAPITests(TestCase):
             "last_name": "User",
             "phone_number": "1234567890",
             "address": "123 Test St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -161,7 +162,7 @@ class UserAPITests(TestCase):
 
         self.user = User.objects.get(email="testuser@example.com")
         self.updated_user_data = {
-            "user_type": self.usertype.user_type_id,
+            "user_type": self.usertype.user_type_id, # Keep this for update test, as it might be explicitly set
             "first_name": "Updated",
             "last_name": "User",
             "email": "updateduser@example.com",
@@ -201,7 +202,7 @@ class UserAPITests(TestCase):
 class ServiceCategoryAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
 
         # Register a user and get tokens
@@ -214,7 +215,7 @@ class ServiceCategoryAPITests(TestCase):
             "last_name": "User",
             "phone_number": "1111111111",
             "address": "1 ServiceCat St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -274,7 +275,7 @@ class ServiceCategoryAPITests(TestCase):
 class ServiceAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
 
         # Register a user and get tokens
@@ -287,7 +288,7 @@ class ServiceAPITests(TestCase):
             "last_name": "User",
             "phone_number": "2222222222",
             "address": "2 Service St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -370,7 +371,7 @@ class ServiceAPITests(TestCase):
 class TechnicianAvailabilityAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
 
         # Register a user and get tokens
@@ -383,7 +384,7 @@ class TechnicianAvailabilityAPITests(TestCase):
             "last_name": "User",
             "phone_number": "3333333333",
             "address": "3 Avail St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -393,7 +394,6 @@ class TechnicianAvailabilityAPITests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
 
         self.technician_user = User.objects.create(
-            user_type=self.usertype,
             first_name="Tech", last_name="User", email="techuser@example.com",
             password="techpassword123", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="1122334455",
             username="techuser"
@@ -465,7 +465,7 @@ class TechnicianAvailabilityAPITests(TestCase):
 class TechnicianSkillAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
 
         # Register a user and get tokens
@@ -478,7 +478,7 @@ class TechnicianSkillAPITests(TestCase):
             "last_name": "User",
             "phone_number": "4444444444",
             "address": "4 Skill St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -488,7 +488,6 @@ class TechnicianSkillAPITests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
 
         self.technician_user = User.objects.create(
-            user_type=self.usertype,
             first_name="Skill", last_name="Tech", email="skilltech@example.com",
             password="skilltechpassword", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="9988776655",
             username="skilltech"
@@ -557,7 +556,7 @@ class TechnicianSkillAPITests(TestCase):
 class VerificationDocumentAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
 
         # Register a user and get tokens
@@ -570,7 +569,7 @@ class VerificationDocumentAPITests(TestCase):
             "last_name": "User",
             "phone_number": "5555555555",
             "address": "5 Doc St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -580,7 +579,6 @@ class VerificationDocumentAPITests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
 
         self.technician_user = User.objects.create(
-            user_type=self.usertype,
             first_name="Tech", last_name="User", email="techuser@example.com",
             password="techpassword123", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="2233445566",
             username="techuser"
@@ -658,7 +656,7 @@ class VerificationDocumentAPITests(TestCase):
 class OrderAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.register_url = '/api/register/'
 
         # Register a user and get tokens
@@ -671,7 +669,7 @@ class OrderAPITests(TestCase):
             "last_name": "User",
             "phone_number": "6666666666",
             "address": "6 Order St",
-            "user_type": self.usertype.user_type_id
+            # user_type is now optional and defaults to 1 in the model
         }
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -681,12 +679,12 @@ class OrderAPITests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
 
         # Create UserTypes
-        self.client_usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.client_usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
         self.tech_usertype, created = UserType.objects.get_or_create(user_type_name="Technician")
 
         # Create Users
         self.client_user = User.objects.create(
-            user_type=self.client_usertype, first_name="Client", last_name="User",
+            first_name="Client", last_name="User",
             email="clientuser@example.com", password="clientpassword",
             registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="3344556677", username="clientuser"
         )
