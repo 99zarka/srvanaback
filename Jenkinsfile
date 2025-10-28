@@ -5,6 +5,8 @@ pipeline {
         stage('Checkout') {
             steps {
                 script {
+                    echo 'cleaning folder...'
+                    cleanWs()
                     echo 'Cloning repository...'
                     bat 'git clone https://github.com/99zarka/srvanaback .' // Clone into the current directory
                     echo 'Repository cloned.'
@@ -37,7 +39,6 @@ pipeline {
             steps {
                 script {
                     echo 'Deployment stage - activating venv and running server.'
-                    bat 'call venv\\Scripts\\activate'
                     bat 'python manage.py runserver'
                     echo 'Deployment stage complete.'
                 }
