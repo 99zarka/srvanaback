@@ -7,59 +7,159 @@ from api.models import (
     UserType, User, ServiceCategory, Service, Order,
     TechnicianSkill, TechnicianAvailability, VerificationDocument
 )
+from rest_framework_simplejwt.tokens import RefreshToken
+
+class AuthAPITests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+        self.login_url = '/api/login/'
+
+        self.user_data = {
+            "email": "testuser@example.com",
+            "username": "testuser",
+            "password": "testpassword123",
+            "password2": "testpassword123",
+            "first_name": "Test",
+            "last_name": "User",
+            "phone_number": "1234567890",
+            "address": "123 Test St",
+            "user_type": self.usertype.user_type_id
+        }
+
+    def test_user_registration(self):
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIn('tokens', response.data)
+        self.assertIn('access', response.data['tokens'])
+        self.assertIn('refresh', response.data['tokens'])
+        self.assertEqual(User.objects.count(), 1)
+        self.assertEqual(User.objects.get().email, 'testuser@example.com')
+
+    def test_user_registration_mismatched_passwords(self):
+        data = self.user_data.copy()
+        data['password2'] = 'mismatchedpassword'
+        response = self.client.post(self.register_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('password', response.data)
+
+    def test_user_registration_existing_email(self):
+        self.client.post(self.register_url, self.user_data, format='json')
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('email', response.data)
+
+    def test_user_login(self):
+        self.client.post(self.register_url, self.user_data, format='json')
+        login_data = {
+            "email": "testuser@example.com",
+            "password": "testpassword123"
+        }
+        response = self.client.post(self.login_url, login_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('access', response.data)
+        self.assertIn('refresh', response.data)
+
+    def test_user_login_invalid_credentials(self):
+        login_data = {
+            "email": "nonexistent@example.com",
+            "password": "wrongpassword"
+        }
+        response = self.client.post(self.login_url, login_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn('detail', response.data)
 
 class UserTypeAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+
+        # Register a user and get tokens
+        self.user_data = {
+            "email": "usertypeuser@example.com",
+            "username": "usertypeuser",
+            "password": "usertypepassword123",
+            "password2": "usertypepassword123",
+            "first_name": "UserType",
+            "last_name": "User",
+            "phone_number": "7777777777",
+            "address": "7 UserType St",
+            "user_type": self.usertype.user_type_id
+        }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+
         self.usertype_data = {"user_type_name": "TestUserType"}
         self.updated_usertype_data = {"user_type_name": "UpdatedTestUserType"}
 
     def test_create_usertype(self):
         response = self.client.post('/api/usertypes/', self.usertype_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(UserType.objects.count(), 1)
-        self.assertEqual(UserType.objects.get().user_type_name, 'TestUserType')
+        self.assertEqual(UserType.objects.count(), 2) # Expect 2: one from setUp, one created in this test
+        self.assertEqual(UserType.objects.get(user_type_name='TestUserType').user_type_name, 'TestUserType')
 
     def test_get_all_usertypes(self):
-        UserType.objects.create(user_type_name="AnotherUserType")
+        UserType.objects.get_or_create(user_type_name="AnotherUserType") # Use get_or_create
         response = self.client.get('/api/usertypes/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Only one created in this test, not including setUp
+        self.assertEqual(len(response.data), 2) # One from setUp, one created here
 
     def test_get_single_usertype(self):
-        usertype = UserType.objects.create(user_type_name="SingleUserType")
+        usertype, created = UserType.objects.get_or_create(user_type_name="SingleUserType") # Use get_or_create
         response = self.client.get(f'/api/usertypes/{usertype.user_type_id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['user_type_name'], 'SingleUserType')
 
     def test_update_usertype(self):
-        usertype = UserType.objects.create(user_type_name="OriginalUserType")
+        usertype, created = UserType.objects.get_or_create(user_type_name="OriginalUserType") # Use get_or_create
         response = self.client.put(f'/api/usertypes/{usertype.user_type_id}/', self.updated_usertype_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         usertype.refresh_from_db()
         self.assertEqual(usertype.user_type_name, 'UpdatedTestUserType')
 
     def test_delete_usertype(self):
-        usertype = UserType.objects.create(user_type_name="UserTypeToDelete")
+        usertype, created = UserType.objects.get_or_create(user_type_name="UserTypeToDelete") # Use get_or_create
         response = self.client.delete(f'/api/usertypes/{usertype.user_type_id}/')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(UserType.objects.count(), 0)
+        # The count will be 1 if "Customer" from setUp still exists, or 0 if it's cleaned up.
+        # For now, let's assert that the specific usertype is deleted.
+        self.assertFalse(UserType.objects.filter(user_type_name="UserTypeToDelete").exists())
 
 
 class UserAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype = UserType.objects.create(user_type_name="Customer")
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+        self.login_url = '/api/login/'
+
+        # Register a user and get tokens
         self.user_data = {
-            "user_type": self.usertype.user_type_id,
+            "email": "testuser@example.com",
+            "username": "testuser",
+            "password": "testpassword123",
+            "password2": "testpassword123",
             "first_name": "Test",
             "last_name": "User",
-            "email": "testuser@example.com",
-            "password": "testpassword123",
-            "registration_date": timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)),
             "phone_number": "1234567890",
-            "username": "testuser"
+            "address": "123 Test St",
+            "user_type": self.usertype.user_type_id
         }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+        self.refresh_token = response.data['tokens']['refresh']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+
+        self.user = User.objects.get(email="testuser@example.com")
         self.updated_user_data = {
             "user_type": self.usertype.user_type_id,
             "first_name": "Updated",
@@ -70,56 +170,30 @@ class UserAPITests(TestCase):
             "registration_date": timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0))
         }
 
-    def test_create_user(self):
+    def test_create_user_unauthenticated(self):
+        # Test that unauthenticated users cannot create users directly via UserViewSet
+        self.client.credentials() # Clear credentials
         response = self.client.post('/api/users/', self.user_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(User.objects.count(), 1)
-        self.assertEqual(User.objects.get().email, 'testuser@example.com')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_get_all_users(self):
-        User.objects.create(
-            user_type=self.usertype,
-            first_name="Another", last_name="User", email="another@example.com",
-            password="password", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="1112223333",
-            username="anotheruser"
-        )
+    def test_get_all_users_authenticated(self):
         response = self.client.get('/api/users/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Only one created in this test, not including setUp
+        self.assertEqual(len(response.data), 1) # Only the registered user
 
-    def test_get_single_user(self):
-        user = User.objects.create(
-            user_type=self.usertype,
-            first_name="Single", last_name="User", email="single@example.com",
-            password="password", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="4445556666",
-            username="singleuser"
-        )
-        response = self.client.get(f'/api/users/{user.user_id}/')
+    def test_get_single_user_authenticated(self):
+        response = self.client.get(f'/api/users/{self.user.user_id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], 'single@example.com')
+        self.assertEqual(response.data['email'], 'testuser@example.com')
 
-    def test_update_user(self):
-        user = User.objects.create(
-            user_type=self.usertype,
-            first_name="Original", last_name="User", email="original@example.com",
-            password="password", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="7778889999",
-            username="originaluser"
-        )
-        response = self.client.put(f'/api/users/{user.user_id}/', self.updated_user_data, format='json')
-        if response.status_code != status.HTTP_200_OK:
-            print(f"Update User Error: {response.data}")
+    def test_update_user_authenticated(self):
+        response = self.client.put(f'/api/users/{self.user.user_id}/', self.updated_user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        user.refresh_from_db()
-        self.assertEqual(user.email, 'updateduser@example.com')
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.email, 'updateduser@example.com')
 
-    def test_delete_user(self):
-        user = User.objects.create(
-            user_type=self.usertype,
-            first_name="User", last_name="ToDelete", email="todelete@example.com",
-            password="password", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="0001112222",
-            username="usertodelete"
-        )
-        response = self.client.delete(f'/api/users/{user.user_id}/')
+    def test_delete_user_authenticated(self):
+        response = self.client.delete(f'/api/users/{self.user.user_id}/')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertEqual(User.objects.count(), 0)
 
@@ -127,6 +201,28 @@ class UserAPITests(TestCase):
 class ServiceCategoryAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+
+        # Register a user and get tokens
+        self.user_data = {
+            "email": "servicecatuser@example.com",
+            "username": "servicecatuser",
+            "password": "servicecatpassword123",
+            "password2": "servicecatpassword123",
+            "first_name": "ServiceCat",
+            "last_name": "User",
+            "phone_number": "1111111111",
+            "address": "1 ServiceCat St",
+            "user_type": self.usertype.user_type_id
+        }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+
         self.category_data = {
             "category_name": "TestCategory",
             "description": "Description for TestCategory",
@@ -138,32 +234,37 @@ class ServiceCategoryAPITests(TestCase):
             "icon_url": "http://example.com/updated_icon.png"
         }
 
-    def test_create_servicecategory(self):
+    def test_create_servicecategory_authenticated(self):
         response = self.client.post('/api/servicecategories/', self.category_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(ServiceCategory.objects.count(), 1)
         self.assertEqual(ServiceCategory.objects.get().category_name, 'TestCategory')
 
-    def test_get_all_servicecategories(self):
+    def test_create_servicecategory_unauthenticated(self):
+        self.client.credentials() # Clear credentials
+        response = self.client.post('/api/servicecategories/', self.category_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_all_servicecategories_authenticated(self):
         ServiceCategory.objects.create(category_name="AnotherCategory", description="Desc")
         response = self.client.get('/api/servicecategories/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_get_single_servicecategory(self):
+    def test_get_single_servicecategory_authenticated(self):
         category = ServiceCategory.objects.create(category_name="SingleCategory", description="Desc")
         response = self.client.get(f'/api/servicecategories/{category.category_id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['category_name'], 'SingleCategory')
 
-    def test_update_servicecategory(self):
+    def test_update_servicecategory_authenticated(self):
         category = ServiceCategory.objects.create(category_name="OriginalCategory", description="Desc")
         response = self.client.put(f'/api/servicecategories/{category.category_id}/', self.updated_category_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         category.refresh_from_db()
         self.assertEqual(category.category_name, 'UpdatedTestCategory')
 
-    def test_delete_servicecategory(self):
+    def test_delete_servicecategory_authenticated(self):
         category = ServiceCategory.objects.create(category_name="CategoryToDelete", description="Desc")
         response = self.client.delete(f'/api/servicecategories/{category.category_id}/')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
@@ -173,6 +274,28 @@ class ServiceCategoryAPITests(TestCase):
 class ServiceAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+
+        # Register a user and get tokens
+        self.user_data = {
+            "email": "serviceuser@example.com",
+            "username": "serviceuser",
+            "password": "servicepassword123",
+            "password2": "servicepassword123",
+            "first_name": "Service",
+            "last_name": "User",
+            "phone_number": "2222222222",
+            "address": "2 Service St",
+            "user_type": self.usertype.user_type_id
+        }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+
         self.category = ServiceCategory.objects.create(category_name="TestCategoryForService", description="Temp category")
         self.service_data = {
             "category": self.category.category_id,
@@ -195,13 +318,18 @@ class ServiceAPITests(TestCase):
             "emergency_surcharge_percentage": 15.00
         }
 
-    def test_create_service(self):
+    def test_create_service_authenticated(self):
         response = self.client.post('/api/services/', self.service_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Service.objects.count(), 1)
         self.assertEqual(Service.objects.get().service_name, 'TestService')
 
-    def test_get_all_services(self):
+    def test_create_service_unauthenticated(self):
+        self.client.credentials() # Clear credentials
+        response = self.client.post('/api/services/', self.service_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_all_services_authenticated(self):
         Service.objects.create(
             category=self.category, service_name="AnotherService", description="Desc",
             service_type="Installation", base_inspection_fee=30.00
@@ -210,7 +338,7 @@ class ServiceAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_get_single_service(self):
+    def test_get_single_service_authenticated(self):
         service = Service.objects.create(
             category=self.category, service_name="SingleService", description="Desc",
             service_type="Repair", base_inspection_fee=60.00
@@ -219,7 +347,7 @@ class ServiceAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['service_name'], 'SingleService')
 
-    def test_update_service(self):
+    def test_update_service_authenticated(self):
         service = Service.objects.create(
             category=self.category, service_name="OriginalService", description="Desc",
             service_type="Repair", base_inspection_fee=40.00
@@ -229,7 +357,7 @@ class ServiceAPITests(TestCase):
         service.refresh_from_db()
         self.assertEqual(service.service_name, 'UpdatedTestService')
 
-    def test_delete_service(self):
+    def test_delete_service_authenticated(self):
         service = Service.objects.create(
             category=self.category, service_name="ServiceToDelete", description="Desc",
             service_type="Repair", base_inspection_fee=70.00
@@ -242,7 +370,28 @@ class ServiceAPITests(TestCase):
 class TechnicianAvailabilityAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype = UserType.objects.create(user_type_name="Technician")
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+
+        # Register a user and get tokens
+        self.user_data = {
+            "email": "availuser@example.com",
+            "username": "availuser",
+            "password": "availpassword123",
+            "password2": "availpassword123",
+            "first_name": "Avail",
+            "last_name": "User",
+            "phone_number": "3333333333",
+            "address": "3 Avail St",
+            "user_type": self.usertype.user_type_id
+        }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+
         self.technician_user = User.objects.create(
             user_type=self.usertype,
             first_name="Tech", last_name="User", email="techuser@example.com",
@@ -264,13 +413,18 @@ class TechnicianAvailabilityAPITests(TestCase):
             "is_available": False
         }
 
-    def test_create_technicianavailability(self):
+    def test_create_technicianavailability_authenticated(self):
         response = self.client.post('/api/technicianavailabilities/', self.availability_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(TechnicianAvailability.objects.count(), 1)
         self.assertEqual(TechnicianAvailability.objects.get().day_of_week, 'Monday')
 
-    def test_get_all_technicianavailabilities(self):
+    def test_create_technicianavailability_unauthenticated(self):
+        self.client.credentials() # Clear credentials
+        response = self.client.post('/api/technicianavailabilities/', self.availability_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_all_technicianavailabilities_authenticated(self):
         TechnicianAvailability.objects.create(
             technician_user=self.technician_user, day_of_week="Wednesday",
             start_time="08:00", end_time="16:00", is_available=True
@@ -279,7 +433,7 @@ class TechnicianAvailabilityAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_get_single_technicianavailability(self):
+    def test_get_single_technicianavailability_authenticated(self):
         availability = TechnicianAvailability.objects.create(
             technician_user=self.technician_user, day_of_week="Thursday",
             start_time="11:00", end_time="19:00", is_available=True
@@ -288,7 +442,7 @@ class TechnicianAvailabilityAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['day_of_week'], 'Thursday')
 
-    def test_update_technicianavailability(self):
+    def test_update_technicianavailability_authenticated(self):
         availability = TechnicianAvailability.objects.create(
             technician_user=self.technician_user, day_of_week="Friday",
             start_time="12:00", end_time="20:00", is_available=True
@@ -298,7 +452,7 @@ class TechnicianAvailabilityAPITests(TestCase):
         availability.refresh_from_db()
         self.assertEqual(availability.day_of_week, 'Tuesday')
 
-    def test_delete_technicianavailability(self):
+    def test_delete_technicianavailability_authenticated(self):
         availability = TechnicianAvailability.objects.create(
             technician_user=self.technician_user, day_of_week="Saturday",
             start_time="09:00", end_time="17:00", is_available=True
@@ -311,7 +465,28 @@ class TechnicianAvailabilityAPITests(TestCase):
 class TechnicianSkillAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype = UserType.objects.create(user_type_name="Technician")
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+
+        # Register a user and get tokens
+        self.user_data = {
+            "email": "skilluser@example.com",
+            "username": "skilluser",
+            "password": "skillpassword123",
+            "password2": "skillpassword123",
+            "first_name": "Skill",
+            "last_name": "User",
+            "phone_number": "4444444444",
+            "address": "4 Skill St",
+            "user_type": self.usertype.user_type_id
+        }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+
         self.technician_user = User.objects.create(
             user_type=self.usertype,
             first_name="Skill", last_name="Tech", email="skilltech@example.com",
@@ -334,13 +509,18 @@ class TechnicianSkillAPITests(TestCase):
             "experience_level": "Master"
         }
 
-    def test_create_technicianskill(self):
+    def test_create_technicianskill_authenticated(self):
         response = self.client.post('/api/technicianskills/', self.skill_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(TechnicianSkill.objects.count(), 1)
         self.assertEqual(TechnicianSkill.objects.get().experience_level, 'Expert')
 
-    def test_get_all_technicianskills(self):
+    def test_create_technicianskill_unauthenticated(self):
+        self.client.credentials() # Clear credentials
+        response = self.client.post('/api/technicianskills/', self.skill_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_all_technicianskills_authenticated(self):
         TechnicianSkill.objects.create(
             technician_user=self.technician_user, service=self.service, experience_level="Beginner"
         )
@@ -348,7 +528,7 @@ class TechnicianSkillAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_get_single_technicianskill(self):
+    def test_get_single_technicianskill_authenticated(self):
         skill = TechnicianSkill.objects.create(
             technician_user=self.technician_user, service=self.service, experience_level="Intermediate"
         )
@@ -356,7 +536,7 @@ class TechnicianSkillAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['experience_level'], 'Intermediate')
 
-    def test_update_technicianskill(self):
+    def test_update_technicianskill_authenticated(self):
         skill = TechnicianSkill.objects.create(
             technician_user=self.technician_user, service=self.service, experience_level="Journeyman"
         )
@@ -365,7 +545,7 @@ class TechnicianSkillAPITests(TestCase):
         skill.refresh_from_db()
         self.assertEqual(skill.experience_level, 'Master')
 
-    def test_delete_technicianskill(self):
+    def test_delete_technicianskill_authenticated(self):
         skill = TechnicianSkill.objects.create(
             technician_user=self.technician_user, service=self.service, experience_level="Apprentice"
         )
@@ -377,12 +557,33 @@ class TechnicianSkillAPITests(TestCase):
 class VerificationDocumentAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype = UserType.objects.create(user_type_name="Technician")
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+
+        # Register a user and get tokens
+        self.user_data = {
+            "email": "docuser@example.com",
+            "username": "docuser",
+            "password": "docpassword123",
+            "password2": "docpassword123",
+            "first_name": "Doc",
+            "last_name": "User",
+            "phone_number": "5555555555",
+            "address": "5 Doc St",
+            "user_type": self.usertype.user_type_id
+        }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+
         self.technician_user = User.objects.create(
             user_type=self.usertype,
-            first_name="Doc", last_name="User", email="docuser@example.com",
-            password="docuserpassword", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="2233445566",
-            username="docuser"
+            first_name="Tech", last_name="User", email="techuser@example.com",
+            password="techpassword123", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="2233445566",
+            username="techuser"
         )
         self.doc_data = {
             "technician_user": self.technician_user.user_id,
@@ -401,13 +602,18 @@ class VerificationDocumentAPITests(TestCase):
             "rejection_reason": ""
         }
 
-    def test_create_verificationdocument(self):
+    def test_create_verificationdocument_authenticated(self):
         response = self.client.post('/api/verificationdocuments/', self.doc_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(VerificationDocument.objects.count(), 1)
         self.assertEqual(VerificationDocument.objects.get().document_type, 'ID Card')
 
-    def test_get_all_verificationdocuments(self):
+    def test_create_verificationdocument_unauthenticated(self):
+        self.client.credentials() # Clear credentials
+        response = self.client.post('/api/verificationdocuments/', self.doc_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_all_verificationdocuments_authenticated(self):
         VerificationDocument.objects.create(
             technician_user=self.technician_user, document_type="License",
             document_url="http://example.com/license.pdf", upload_date="2025-01-01",
@@ -417,7 +623,7 @@ class VerificationDocumentAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_get_single_verificationdocument(self):
+    def test_get_single_verificationdocument_authenticated(self):
         doc = VerificationDocument.objects.create(
             technician_user=self.technician_user, document_type="Certificate",
             document_url="http://example.com/cert.pdf", upload_date="2025-01-01",
@@ -427,7 +633,7 @@ class VerificationDocumentAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['document_type'], 'Certificate')
 
-    def test_update_verificationdocument(self):
+    def test_update_verificationdocument_authenticated(self):
         doc = VerificationDocument.objects.create(
             technician_user=self.technician_user, document_type="Old ID",
             document_url="http://example.com/old_id.pdf", upload_date="2025-01-01",
@@ -438,7 +644,7 @@ class VerificationDocumentAPITests(TestCase):
         doc.refresh_from_db()
         self.assertEqual(doc.document_type, 'Passport')
 
-    def test_delete_verificationdocument(self):
+    def test_delete_verificationdocument_authenticated(self):
         doc = VerificationDocument.objects.create(
             technician_user=self.technician_user, document_type="Temp Doc",
             document_url="http://example.com/temp.pdf", upload_date="2025-01-01",
@@ -452,10 +658,31 @@ class VerificationDocumentAPITests(TestCase):
 class OrderAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.register_url = '/api/register/'
+
+        # Register a user and get tokens
+        self.user_data = {
+            "email": "orderuser@example.com",
+            "username": "orderuser",
+            "password": "orderpassword123",
+            "password2": "orderpassword123",
+            "first_name": "Order",
+            "last_name": "User",
+            "phone_number": "6666666666",
+            "address": "6 Order St",
+            "user_type": self.usertype.user_type_id
+        }
+        response = self.client.post(self.register_url, self.user_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.access_token = response.data['tokens']['access']
+
+        # Authenticate the client
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
 
         # Create UserTypes
-        self.client_usertype = UserType.objects.create(user_type_name="Customer")
-        self.tech_usertype = UserType.objects.create(user_type_name="Technician")
+        self.client_usertype, created = UserType.objects.get_or_create(user_type_name="Customer")
+        self.tech_usertype, created = UserType.objects.get_or_create(user_type_name="Technician")
 
         # Create Users
         self.client_user = User.objects.create(
@@ -519,13 +746,18 @@ class OrderAPITests(TestCase):
             "amount_to_technician": 144.00
         }
 
-    def test_create_order(self):
+    def test_create_order_authenticated(self):
         response = self.client.post('/api/orders/', self.order_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Order.objects.count(), 1)
         self.assertEqual(Order.objects.get().problem_description, 'Leaky faucet in kitchen.')
 
-    def test_get_all_orders(self):
+    def test_create_order_unauthenticated(self):
+        self.client.credentials() # Clear credentials
+        response = self.client.post('/api/orders/', self.order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_all_orders_authenticated(self):
         Order.objects.create(
             client_user=self.client_user, service=self.service, technician_user=self.technician_user,
             order_type="Scheduled", problem_description="Another order", requested_location="456 Oak Ave",
@@ -536,7 +768,7 @@ class OrderAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_get_single_order(self):
+    def test_get_single_order_authenticated(self):
         order = Order.objects.create(
             client_user=self.client_user, service=self.service, technician_user=self.technician_user,
             order_type="Emergency", problem_description="Single order", requested_location="789 Pine St",
@@ -547,7 +779,7 @@ class OrderAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['problem_description'], 'Single order')
 
-    def test_update_order(self):
+    def test_update_order_authenticated(self):
         order = Order.objects.create(
             client_user=self.client_user, service=self.service, technician_user=self.technician_user,
             order_type="Emergency", problem_description="Original order", requested_location="101 Elm St",
@@ -559,7 +791,7 @@ class OrderAPITests(TestCase):
         order.refresh_from_db()
         self.assertEqual(order.order_status, 'Completed')
 
-    def test_delete_order(self):
+    def test_delete_order_authenticated(self):
         order = Order.objects.create(
             client_user=self.client_user, service=self.service, technician_user=self.technician_user,
             order_type="Scheduled", problem_description="Order to delete", requested_location="202 Birch Ln",

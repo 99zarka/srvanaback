@@ -16,40 +16,33 @@ class UserSerializer(serializers.ModelSerializer):
         extra_kwargs = {'password': {'write_only': True, 'required': False}}
         read_only_fields = ('groups', 'user_permissions', 'is_staff', 'is_superuser', 'is_active', 'last_login')
 
+class UserRegistrationSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    password2 = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+
+    class Meta:
+        model = User
+        fields = ('email', 'username', 'password', 'password2', 'first_name', 'last_name', 'phone_number', 'address', 'user_type')
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password2']:
+            raise serializers.ValidationError({"password": "Password fields didn't match."})
+        return attrs
+
     def create(self, validated_data):
-        # Remove fields that are not directly set during user creation or are many-to-many
-        validated_data.pop('groups', None)
-        validated_data.pop('user_permissions', None)
-        validated_data.pop('is_staff', None)
-        validated_data.pop('is_superuser', None)
-        validated_data.pop('is_active', None)
-        validated_data.pop('last_login', None)
-
-        # Handle phone_number to ensure it's None if empty, to avoid unique constraint violation
-        phone_number = validated_data.get('phone_number')
-        if phone_number == '':
-            validated_data['phone_number'] = None
-
-        # Handle username to ensure it's None if empty, to avoid unique constraint violation
-        username = validated_data.get('username')
-        if username == '':
-            validated_data['username'] = None
-
-        user = User.objects.create_user(**validated_data)
+        validated_data.pop('password2')
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            username=validated_data.get('username'),
+            first_name=validated_data.get('first_name'),
+            last_name=validated_data.get('last_name'),
+            phone_number=validated_data.get('phone_number'),
+            address=validated_data.get('address'),
+            user_type=validated_data.get('user_type'),
+            password=validated_data['password']
+        )
         return user
-
-    def update(self, instance, validated_data):
-        # Remove password from validated_data if it's not being updated
-        password = validated_data.pop('password', None)
-        if password:
-            instance.set_password(password)
-
-        # Update other fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-
-        instance.save()
-        return instance
 
 class ServiceCategorySerializer(serializers.ModelSerializer):
     class Meta:
