@@ -23,7 +23,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('email', 'username', 'password', 'password2', 'first_name', 'last_name', 'phone_number', 'address', 'user_type')
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'first_name': {'required': False},
+            'last_name': {'required': False},
+            'phone_number': {'required': False},
+            'address': {'required': False},
+            'user_type': {'required': False}, # Make user_type optional in serializer
+        }
 
     def validate(self, attrs):
         if attrs['password'] != attrs['password2']:
@@ -32,14 +39,23 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('password2')
+        # user_type is now handled by the model's default, so we remove it from validated_data if present
+        if 'user_type' in validated_data:
+            validated_data.pop('user_type')
+
+        # Convert empty string phone_number to None to allow unique=True with multiple NULLs
+        phone_number = validated_data.get('phone_number')
+        if phone_number == '':
+            validated_data['phone_number'] = None
+
         user = User.objects.create_user(
             email=validated_data['email'],
             username=validated_data.get('username'),
-            first_name=validated_data.get('first_name'),
-            last_name=validated_data.get('last_name'),
-            phone_number=validated_data.get('phone_number'),
-            address=validated_data.get('address'),
-            user_type=validated_data.get('user_type'),
+            first_name=validated_data.get('first_name', ''), # Provide default empty string for optional fields
+            last_name=validated_data.get('last_name', ''),
+            phone_number=validated_data.get('phone_number'), # Use the potentially modified phone_number
+            address=validated_data.get('address', ''),
+            # user_type will now be set by the model's default
             password=validated_data['password']
         )
         return user

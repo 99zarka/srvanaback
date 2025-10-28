@@ -39,7 +39,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     first_name = models.CharField(max_length=255, null=False, blank=False)
     last_name = models.CharField(max_length=255, null=False, blank=False)
     email = models.CharField(max_length=255, unique=True, null=False, blank=False)
-    phone_number = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    phone_number = models.CharField(max_length=255, unique=True, null=True, blank=True) # Re-added unique=True
     address = models.TextField(null=True, blank=True)
     account_status = models.CharField(max_length=255, null=True, blank=True)
     registration_date = models.DateTimeField(null=False, blank=False, default=timezone.now, editable=False)
@@ -61,7 +61,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['first_name', 'last_name', 'user_type', 'registration_date']
+    REQUIRED_FIELDS = ['first_name', 'last_name', 'registration_date'] # Removed 'user_type' as it has a default
 
     class Meta:
         db_table = 'USER' # Explicitly set table name to match SQL
