@@ -1,66 +1,49 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKER_IMAGE = "srvanaback-app"
-        DOCKER_REGISTRY = "your-docker-registry.com" // Replace with your Docker registry
-        DOCKER_CREDENTIALS_ID = "docker-hub-credentials" // Replace with your Docker credentials ID in Jenkins
-    }
-
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
                 script {
-                    sh "docker build -t ${DOCKER_IMAGE}:${env.BUILD_NUMBER} ."
+                    echo 'cleaning folder...'
+                    cleanWs()
+                    echo 'Cloning repository...'
+                    bat 'git clone https://github.com/99zarka/srvanaback .' // Clone into the current directory
+                    echo 'Repository cloned.'
                 }
             }
         }
-
+        stage('Build') {
+            steps {
+                script {
+                    echo 'Ensuring virtual environment exists and installing dependencies...'
+                    bat 'python -m venv venv'
+                    bat 'call venv\\Scripts\\activate'
+                    bat 'pip install -r requirements.txt'
+                    echo 'Build stage complete.'
+                }
+            }
+        }
         stage('Test') {
             steps {
                 script {
-                    // Run tests inside a temporary container
-                    sh "docker run --rm ${DOCKER_IMAGE}:${env.BUILD_NUMBER} python manage.py test"
+                    echo 'Activating virtual environment and running tests...'
+                    bat 'call venv\\Scripts\\activate'
+                    bat 'python manage.py test api.tests.test_models --verbosity 2 --noinput --keepdb'
+                    bat 'python manage.py test api.test_api_crud --verbosity 2 --noinput --keepdb'
+                    echo 'Test stage complete.'
                 }
             }
         }
-
-        stage('Push Docker Image') {
-            steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-                        sh "docker tag ${DOCKER_IMAGE}:${env.BUILD_NUMBER} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
-                        sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD} ${DOCKER_REGISTRY}"
-                        sh "docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
-                    }
-                }
-            }
-        }
-
         stage('Deploy') {
             steps {
-                echo "Deployment logic goes here. For example, using Kubernetes, SSH, etc."
-                echo "Image to deploy: ${DOCKER_REGISTRY}/${DOCKER_IMAGE}:${env.BUILD_NUMBER}"
-                // Example: sh "kubectl apply -f kubernetes-deployment.yaml"
+                script {
+                    echo 'Deployment stage - activating venv and running server.'
+                    bat 'python manage.py runserver'
+                    echo 'Deployment stage complete.'
+                    echo 'Deployment stage complete.'
+                }
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Pipeline finished."
-        }
-        success {
-            echo "Pipeline succeeded!"
-        }
-        failure {
-            echo "Pipeline failed!"
         }
     }
 }
