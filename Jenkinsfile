@@ -41,6 +41,7 @@ pipeline {
                     echo 'Deployment stage - activating venv and running server.'
                     bat 'python manage.py runserver'
                     echo 'Deployment stage complete.'
+                    echo 'Deployment stage complete.'
                 }
             }
         }
