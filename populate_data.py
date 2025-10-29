@@ -4,7 +4,7 @@ from datetime import date
 import time
 
 # Set up Django environment
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'sevana.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'srvana.settings')
 django.setup()
 
 from api.models import UserType, User, ServiceCategory, Service, Order, Payment, Review, TechnicianAvailability, TechnicianSkill, ProjectOffer, Complaint, Media, VerificationDocument
