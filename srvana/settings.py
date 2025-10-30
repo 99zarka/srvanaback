@@ -102,7 +102,9 @@ CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file tes
 
 # WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
 # It is used here for development/testing purposes as per user request.
-CSRF_TRUSTED_ORIGINS = ['https://*', 'http://*']
+# WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
+# It is used here for development/testing purposes as per user request.
+CSRF_TRUSTED_ORIGINS = ['https://*', 'http://*', 'https://srvanaback-268062404120.europe-west1.run.app']
 
 ROOT_URLCONF = 'srvana.urls'
 
