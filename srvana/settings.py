@@ -100,6 +100,10 @@ MIDDLEWARE = [
 # If you want to allow all origins during development, you can use:
 CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
 
+# WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
+# It is used here for development/testing purposes as per user request.
+CSRF_TRUSTED_ORIGINS = ['https://*', 'http://*']
+
 ROOT_URLCONF = 'srvana.urls'
 
 TEMPLATES = [
