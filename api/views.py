@@ -6,11 +6,22 @@ from .models.users import User, UserType
 from .models.services import ServiceCategory, Service
 from .models.technicians import TechnicianAvailability, TechnicianSkill, VerificationDocument
 from .models.orders.core import Order
+from .models.orders.feedback import ProjectOffer
+from .models.addresses import Address
+from .models.payment_methods import PaymentMethod
+from .models.notifications import NotificationPreference, Notification
+from .models.reviews import Review
+from .models.issue_reports import IssueReport
+from .models.transactions import Transaction
+from .models.chat import Conversation, Message
 from .serializers import (
     UserTypeSerializer, UserSerializer, UserRegistrationSerializer,
     ServiceCategorySerializer, ServiceSerializer,
     TechnicianAvailabilitySerializer, TechnicianSkillSerializer,
-    VerificationDocumentSerializer, OrderSerializer
+    VerificationDocumentSerializer, OrderSerializer, ProjectOfferSerializer,
+    AddressSerializer, PaymentMethodSerializer, NotificationPreferenceSerializer,
+    NotificationSerializer, ReviewSerializer, IssueReportSerializer,
+    TransactionSerializer, ConversationSerializer, MessageSerializer
 )
 
 class RegisterView(generics.CreateAPIView):
@@ -75,4 +86,54 @@ class VerificationDocumentViewSet(viewsets.ModelViewSet):
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class ProjectOfferViewset(viewsets.ModelViewSet):
+    queryset = ProjectOffer.objects.all()
+    serializer_class = ProjectOfferSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class AddressViewSet(viewsets.ModelViewSet):
+    queryset = Address.objects.all()
+    serializer_class = AddressSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class PaymentMethodViewSet(viewsets.ModelViewSet):
+    queryset = PaymentMethod.objects.all()
+    serializer_class = PaymentMethodSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class NotificationPreferenceViewSet(viewsets.ModelViewSet):
+    queryset = NotificationPreference.objects.all()
+    serializer_class = NotificationPreferenceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class IssueReportViewSet(viewsets.ModelViewSet):
+    queryset = IssueReport.objects.all()
+    serializer_class = IssueReportSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class TransactionViewSet(viewsets.ModelViewSet):
+    queryset = Transaction.objects.all()
+    serializer_class = TransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class ConversationViewSet(viewsets.ModelViewSet):
+    queryset = Conversation.objects.all()
+    serializer_class = ConversationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+class MessageViewSet(viewsets.ModelViewSet):
+    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated]

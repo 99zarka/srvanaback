@@ -9,6 +9,8 @@ class TechnicianAvailability(models.Model):
     start_time = models.CharField(max_length=255, null=False, blank=False) # Storing as CharField for flexibility with time formats
     end_time = models.CharField(max_length=255, null=False, blank=False) # Storing as CharField for flexibility with time formats
     is_available = models.BooleanField(null=False, blank=False)
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    experience_years = models.IntegerField(null=True, blank=True)
 
     class Meta:
         db_table = 'TECHNICIAN_AVAILABILITY'

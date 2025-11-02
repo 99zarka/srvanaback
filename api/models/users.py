@@ -44,9 +44,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     account_status = models.CharField(max_length=255, null=True, blank=True)
     registration_date = models.DateTimeField(null=False, blank=False, default=timezone.now, editable=False)
     last_login_date = models.DateTimeField(null=True, blank=True)
-    notification_preferences = models.TextField(null=True, blank=True)
     bio = models.TextField(null=True, blank=True)
-    profile_picture = models.CharField(max_length=255, null=True, blank=True)
+    profile_photo = models.CharField(max_length=255, null=True, blank=True)
+    referral_code = models.CharField(max_length=20, unique=True, null=True, blank=True)
     overall_rating = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True) # Assuming rating is between 0-5
     num_jobs_completed = models.IntegerField(null=True, blank=True)
     average_response_time = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True) # Assuming time in minutes/hours

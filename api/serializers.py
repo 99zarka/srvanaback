@@ -3,6 +3,14 @@ from .models.users import User, UserType
 from .models.services import ServiceCategory, Service
 from .models.technicians import TechnicianAvailability, TechnicianSkill, VerificationDocument
 from .models.orders.core import Order
+from .models.orders.feedback import ProjectOffer
+from .models.addresses import Address
+from .models.payment_methods import PaymentMethod
+from .models.notifications import NotificationPreference, Notification
+from .models.reviews import Review
+from .models.issue_reports import IssueReport
+from .models.transactions import Transaction
+from .models.chat import Conversation, Message
 
 class UserTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -88,4 +96,58 @@ class VerificationDocumentSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
+        fields = '__all__'
+
+class ProjectOfferSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectOffer
+        fields = '__all__'
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = '__all__'
+
+class PaymentMethodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentMethod
+        fields = '__all__'
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationPreference
+        fields = '__all__'
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = '__all__'
+
+class ReviewSerializer(serializers.ModelSerializer):
+    reviewer = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    technician = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    order = serializers.PrimaryKeyRelatedField(queryset=Order.objects.all())
+
+    class Meta:
+        model = Review
+        fields = '__all__'
+
+class IssueReportSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IssueReport
+        fields = '__all__'
+
+class TransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Transaction
+        fields = '__all__'
+
+class ConversationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Conversation
+        fields = '__all__'
+
+class MessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Message
         fields = '__all__'
