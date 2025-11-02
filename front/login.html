@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
+    <meta name="google-signin-client_id" content="268062404120-nfkt7hf22qe38i8kerp11ju3s22ut4j1.apps.googleusercontent.com">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         form div { margin-bottom: 10px; }
@@ -15,6 +17,7 @@
     </style>
 </head>
 <body>
+
     <h1>Login</h1>
     <form id="loginForm">
         <div>
@@ -27,6 +30,24 @@
         </div>
         <button type="submit">Login</button>
     </form>
+
+    <div id="g_id_onload"
+         data-client_id="268062404120-nfkt7hf22qe38i8kerp11ju3s22ut4j1.apps.googleusercontent.com"
+         data-callback="handleGoogleSignIn"
+         data-auto_select="true">
+    </div>
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="outline"
+         data-text="sign_in_with"
+         data-shape="rectangular"
+         data-logo_alignment="left"
+         data-width="200"
+         data-client_id="268062404120-nfkt7hf22qe38i8kerp11ju3s22ut4j1.apps.googleusercontent.com"
+         data-callback="handleGoogleSignIn">
+    </div>
+
     <div id="message" class="message" style="display: none;"></div>
 
     <script>
@@ -70,6 +91,42 @@
                 messageDiv.style.display = 'block';
             }
         });
+
+        async function handleGoogleSignIn(response) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.style.display = 'none';
+            messageDiv.className = 'message';
+            messageDiv.textContent = '';
+
+            const id_token = response.credential;
+
+            try {
+                const backendResponse = await fetch('http://localhost:8000/api/google-login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ id_token: id_token })
+                });
+
+                const data = await backendResponse.json();
+
+                if (backendResponse.ok) {
+                    messageDiv.classList.add('success');
+                    messageDiv.textContent = 'Google Login successful! Tokens: ' + JSON.stringify(data);
+                    localStorage.setItem('access_token', data.access);
+                    localStorage.setItem('refresh_token', data.refresh);
+                } else {
+                    messageDiv.classList.add('error');
+                    messageDiv.textContent = 'Google Login failed: ' + JSON.stringify(data);
+                }
+            } catch (error) {
+                messageDiv.classList.add('error');
+                messageDiv.textContent = 'An error occurred during Google login: ' + error.message;
+            } finally {
+                messageDiv.style.display = 'block';
+            }
+        }
     </script>
 </body>
 </html>

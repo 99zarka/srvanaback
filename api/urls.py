@@ -9,6 +9,7 @@ from .views import (
     NotificationViewSet, ReviewViewSet, IssueReportViewSet,
     TransactionViewSet, ConversationViewSet, MessageViewSet
 )
+from .google_login import GoogleLoginView
 
 router = DefaultRouter()
 router.register(r'usertypes', UserTypeViewSet)
@@ -33,4 +34,5 @@ router.register(r'messages', MessageViewSet)
 urlpatterns = [
     path('', include(router.urls)),
     path('register/', RegisterView.as_view(), name='register'),
+    path('google-login/', GoogleLoginView.as_view(), name='google_login'),
 ]
