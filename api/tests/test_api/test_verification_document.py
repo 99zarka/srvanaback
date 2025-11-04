@@ -1,109 +1,205 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
-from datetime import date, datetime
-from django.utils import timezone
-from api.models import (
-    UserType, User, ServiceCategory, Service, Order,
-    TechnicianSkill, TechnicianAvailability, VerificationDocument
-)
+from django.urls import reverse
+from api.models import VerificationDocument, User, UserType
+from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
+import datetime
 
 class VerificationDocumentAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
-        self.register_url = '/api/register/'
+        self.client_usertype = UserType.objects.create(user_type_name='client')
+        self.technician_usertype = UserType.objects.create(user_type_name='technician')
+        self.admin_usertype = UserType.objects.create(user_type_name='admin')
 
-        # Register a user and get tokens
-        self.user_data = {
-            "email": "docuser@example.com",
-            "username": "docuser",
-            "password": "docpassword123",
-            "password2": "docpassword123",
-            "first_name": "Doc",
-            "last_name": "User",
-            "phone_number": "5555555555",
-            "address": "5 Doc St",
-            # user_type is now optional and defaults to 1 in the model
-        }
-        response = self.client.post(self.register_url, self.user_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.access_token = response.data['tokens']['access']
-
-        # Authenticate the client
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
-
-        self.technician_user = User.objects.create(
-            first_name="Tech", last_name="User", email="techuser@example.com",
-            password="techpassword123", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="2233445566",
-            username="techuser"
+        self.client_user = User.objects.create_user(
+            username='clientuser',
+            email='client@example.com',
+            password='password123',
+            user_type=self.client_usertype
         )
+        self.technician_user = User.objects.create_user(
+            username='techuser',
+            email='technician@example.com',
+            password='password123',
+            user_type=self.technician_usertype
+        )
+        self.other_technician_user = User.objects.create_user(
+            username='othertech',
+            email='othertechnician@example.com',
+            password='password123',
+            user_type=self.technician_usertype
+        )
+        self.admin_user = User.objects.create(
+            email="admin@example.com",
+            username="adminuser",
+            password=make_password("adminpassword123"),
+            user_type=self.admin_usertype,
+            is_staff=True,
+            is_superuser=True
+        )
+
+        self.document = VerificationDocument.objects.create(
+            technician_user=self.technician_user,
+            document_type='ID',
+            document_url='http://example.com/id.pdf',
+            upload_date=datetime.date.today(),
+            verification_status='Pending'
+        )
+        self.other_document = VerificationDocument.objects.create(
+            technician_user=self.other_technician_user,
+            document_type='Passport',
+            document_url='http://example.com/passport.pdf',
+            upload_date=datetime.date.today(),
+            verification_status='Approved'
+        )
+
         self.doc_data = {
-            "technician_user": self.technician_user.user_id,
-            "document_type": "ID Card",
-            "document_url": "http://example.com/id_card.pdf",
-            "upload_date": "2025-01-01",
-            "verification_status": "Pending",
-            "rejection_reason": ""
-        }
-        self.updated_doc_data = {
-            "technician_user": self.technician_user.user_id,
-            "document_type": "Passport",
-            "document_url": "http://example.com/passport.pdf",
-            "upload_date": "2025-01-02",
-            "verification_status": "Approved",
-            "rejection_reason": ""
+            'technician_user': self.technician_user.user_id,
+            'document_type': 'License',
+            'document_url': 'http://example.com/license.pdf',
+            'upload_date': str(datetime.date.today()),
+            'verification_status': 'Pending'
         }
 
-    def test_create_verificationdocument_authenticated(self):
-        response = self.client.post('/api/verificationdocuments/', self.doc_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(VerificationDocument.objects.count(), 1)
-        self.assertEqual(VerificationDocument.objects.get().document_type, 'ID Card')
+        self.list_url = reverse('verificationdocument-list')
+        self.detail_url = reverse('verificationdocument-detail', args=[self.document.doc_id])
+        self.other_detail_url = reverse('verificationdocument-detail', args=[self.other_document.doc_id])
 
-    def test_create_verificationdocument_unauthenticated(self):
-        self.client.credentials() # Clear credentials
-        response = self.client.post('/api/verificationdocuments/', self.doc_data, format='json')
+    def get_auth_client(self, user):
+        token = str(RefreshToken.for_user(user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
+        return self.client
+
+    def test_create_doc_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.post(self.list_url, self.doc_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_get_all_verificationdocuments_authenticated(self):
-        VerificationDocument.objects.create(
-            technician_user=self.technician_user, document_type="License",
-            document_url="http://example.com/license.pdf", upload_date="2025-01-01",
-            verification_status="Pending"
-        )
-        response = self.client.get('/api/verificationdocuments/')
+    def test_create_doc_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.post(self.list_url, self.doc_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_create_own_doc_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.post(self.list_url, self.doc_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(VerificationDocument.objects.count(), 3)
+
+    def test_create_doc_for_other_technician_forbidden(self):
+        client = self.get_auth_client(self.technician_user)
+        doc_data_for_other = self.doc_data.copy()
+        doc_data_for_other['technician_user'] = self.other_technician_user.user_id
+        response = client.post(self.list_url, doc_data_for_other, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_create_doc_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.post(self.list_url, self.doc_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_list_docs_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_docs_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_list_own_docs_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
-    def test_get_single_verificationdocument_authenticated(self):
-        doc = VerificationDocument.objects.create(
-            technician_user=self.technician_user, document_type="Certificate",
-            document_url="http://example.com/cert.pdf", upload_date="2025-01-01",
-            verification_status="Pending"
-        )
-        response = self.client.get(f'/api/verificationdocuments/{doc.doc_id}/')
+    def test_list_docs_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['document_type'], 'Certificate')
+        self.assertEqual(len(response.data), 2)
 
-    def test_update_verificationdocument_authenticated(self):
-        doc = VerificationDocument.objects.create(
-            technician_user=self.technician_user, document_type="Old ID",
-            document_url="http://example.com/old_id.pdf", upload_date="2025-01-01",
-            verification_status="Pending"
-        )
-        response = self.client.put(f'/api/verificationdocuments/{doc.doc_id}/', self.updated_doc_data, format='json')
+    def test_retrieve_doc_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_retrieve_doc_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_retrieve_own_doc_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        doc.refresh_from_db()
-        self.assertEqual(doc.document_type, 'Passport')
 
-    def test_delete_verificationdocument_authenticated(self):
-        doc = VerificationDocument.objects.create(
-            technician_user=self.technician_user, document_type="Temp Doc",
-            document_url="http://example.com/temp.pdf", upload_date="2025-01-01",
-            verification_status="Pending"
-        )
-        response = self.client.delete(f'/api/verificationdocuments/{doc.doc_id}/')
+    def test_retrieve_other_doc_technician_forbidden(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.get(self.other_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_retrieve_doc_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_update_doc_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(self.detail_url, {'verification_status': 'Approved'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_update_doc_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.patch(self.detail_url, {'verification_status': 'Approved'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_own_doc_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.patch(self.detail_url, {'document_type': 'Updated ID'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.document.refresh_from_db()
+        self.assertEqual(self.document.document_type, 'Updated ID')
+
+    def test_update_other_doc_technician_forbidden(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.patch(self.other_detail_url, {'verification_status': 'Rejected'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_doc_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.patch(self.detail_url, {'verification_status': 'Approved'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.document.refresh_from_db()
+        self.assertEqual(self.document.verification_status, 'Approved')
+
+    def test_delete_doc_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_doc_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_own_doc_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(VerificationDocument.objects.count(), 0)
+        self.assertFalse(VerificationDocument.objects.filter(pk=self.document.pk).exists())
+
+    def test_delete_other_doc_technician_forbidden(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.delete(self.other_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_doc_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(VerificationDocument.objects.filter(pk=self.document.pk).exists())

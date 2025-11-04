@@ -1,75 +1,127 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
-from datetime import date, datetime
-from django.utils import timezone
-from api.models import (
-    UserType, User, ServiceCategory, Service, Order,
-    TechnicianSkill, TechnicianAvailability, VerificationDocument
-)
+from django.urls import reverse
+from api.models import User, UserType
+from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 
 class UserAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
-        self.register_url = '/api/register/'
-        self.login_url = '/api/login/'
+        self.client_usertype = UserType.objects.create(user_type_name='client')
+        self.admin_usertype = UserType.objects.create(user_type_name='admin')
 
-        # Register a user and get tokens
-        self.user_data = {
-            "email": "testuser@example.com",
-            "username": "testuser",
-            "password": "testpassword123",
-            "password2": "testpassword123",
-            "first_name": "Test",
-            "last_name": "User",
-            "phone_number": "1234567890",
-            "address": "123 Test St",
-            # user_type is now optional and defaults to 1 in the model
-        }
-        response = self.client.post(self.register_url, self.user_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.access_token = response.data['tokens']['access']
-        self.refresh_token = response.data['tokens']['refresh']
+        self.client_user = User.objects.create_user(
+            username='clientuser',
+            email='client@example.com',
+            password='password123',
+            user_type=self.client_usertype
+        )
+        self.other_client_user = User.objects.create_user(
+            username='otherclient',
+            email='other@example.com',
+            password='password123',
+            user_type=self.client_usertype
+        )
+        self.admin_user = User.objects.create(
+            email="admin@example.com",
+            username="adminuser",
+            password=make_password("adminpassword123"),
+            user_type=self.admin_usertype,
+            is_staff=True,
+            is_superuser=True
+        )
 
-        # Authenticate the client
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
+        self.list_url = reverse('user-list')
+        self.detail_url = reverse('user-detail', args=[self.client_user.user_id])
+        self.other_detail_url = reverse('user-detail', args=[self.other_client_user.user_id])
 
-        self.user = User.objects.get(email="testuser@example.com")
-        self.updated_user_data = {
-            "user_type": self.usertype.user_type_id, # Keep this for update test, as it might be explicitly set
-            "first_name": "Updated",
-            "last_name": "User",
-            "email": "updateduser@example.com",
-            "phone_number": "0987654321",
-            "username": "updateduser",
-            "registration_date": timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0))
-        }
+    def get_auth_client(self, user):
+        token = str(RefreshToken.for_user(user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
+        return self.client
 
-    def test_create_user_unauthenticated(self):
-        # Test that unauthenticated users cannot create users directly via UserViewSet
-        self.client.credentials() # Clear credentials
-        response = self.client.post('/api/users/', self.user_data, format='json')
+    def test_list_users_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_get_all_users_authenticated(self):
-        response = self.client.get('/api/users/')
+    def test_list_users_client(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Only the registered user
+        self.assertEqual(len(response.data), 1) # Should only see self
 
-    def test_get_single_user_authenticated(self):
-        response = self.client.get(f'/api/users/{self.user.user_id}/')
+    def test_list_users_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['email'], 'testuser@example.com')
+        self.assertEqual(len(response.data), 3) # Admin sees all
 
-    def test_update_user_authenticated(self):
-        response = self.client.put(f'/api/users/{self.user.user_id}/', self.updated_user_data, format='json')
+    def test_retrieve_user_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_retrieve_own_user_client(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.user.refresh_from_db()
-        self.assertEqual(self.user.email, 'updateduser@example.com')
+        self.assertEqual(response.data['email'], self.client_user.email)
 
-    def test_delete_user_authenticated(self):
-        response = self.client.delete(f'/api/users/{self.user.user_id}/')
+    def test_retrieve_other_user_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.other_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_retrieve_user_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_update_user_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(self.detail_url, {'first_name': 'test'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_update_own_user_client(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.patch(self.detail_url, {'first_name': 'Updated'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client_user.refresh_from_db()
+        self.assertEqual(self.client_user.first_name, 'Updated')
+
+    def test_update_other_user_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.patch(self.other_detail_url, {'first_name': 'Updated'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_user_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.patch(self.detail_url, {'first_name': 'AdminUpdate'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client_user.refresh_from_db()
+        self.assertEqual(self.client_user.first_name, 'AdminUpdate')
+
+    def test_delete_user_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_own_user_client(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(User.objects.count(), 0)
+        self.assertFalse(User.objects.filter(pk=self.client_user.pk).exists())
+
+    def test_delete_other_user_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.delete(self.other_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_user_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(User.objects.filter(pk=self.client_user.pk).exists())

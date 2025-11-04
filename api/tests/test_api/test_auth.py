@@ -7,13 +7,16 @@ from api.models import (
     UserType, User, ServiceCategory, Service, Order,
     TechnicianSkill, TechnicianAvailability, VerificationDocument
 )
+from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 
 class AuthAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        # Ensure UserType with ID 1 exists for default user_type
-        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
+        self.client_usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="client")
+        self.technician_usertype, created = UserType.objects.get_or_create(user_type_id=2, user_type_name="technician")
+        self.admin_usertype, created = UserType.objects.get_or_create(user_type_id=3, user_type_name="admin")
+
         self.register_url = '/api/register/'
         self.login_url = '/api/login/'
 
@@ -26,8 +29,22 @@ class AuthAPITests(TestCase):
             "last_name": "User",
             "phone_number": "1234567890",
             "address": "123 Test St",
-            # user_type is now optional and defaults to 1 in the model
+            "user_type": self.client_usertype.user_type_id,
         }
+
+        self.admin_user = User.objects.create(
+            email="admin@example.com",
+            username="adminuser",
+            password=make_password("adminpassword123"),
+            first_name="Admin",
+            last_name="User",
+            phone_number="0987654321",
+            address="456 Admin Ave",
+            user_type=self.admin_usertype,
+            is_staff=True,
+            is_superuser=True
+        )
+        self.admin_token = str(RefreshToken.for_user(self.admin_user).access_token)
 
     def test_user_registration(self):
         response = self.client.post(self.register_url, self.user_data, format='json')
@@ -35,8 +52,8 @@ class AuthAPITests(TestCase):
         self.assertIn('tokens', response.data)
         self.assertIn('access', response.data['tokens'])
         self.assertIn('refresh', response.data['tokens'])
-        self.assertEqual(User.objects.count(), 1)
-        self.assertEqual(User.objects.get().email, 'testuser@example.com')
+        self.assertEqual(User.objects.count(), 2)
+        self.assertEqual(User.objects.get(email='testuser@example.com').email, 'testuser@example.com')
 
     def test_user_registration_mismatched_passwords(self):
         data = self.user_data.copy()
@@ -47,11 +64,13 @@ class AuthAPITests(TestCase):
 
     def test_user_registration_existing_email(self):
         self.client.post(self.register_url, self.user_data, format='json')
+        # Attempt to register again with the same email
         response = self.client.post(self.register_url, self.user_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('email', response.data)
 
     def test_user_login(self):
+        # Register a user first
         self.client.post(self.register_url, self.user_data, format='json')
         login_data = {
             "email": "testuser@example.com",

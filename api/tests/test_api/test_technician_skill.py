@@ -1,100 +1,187 @@
-from django.test import TestCase
-from rest_framework.test import APIClient
 from rest_framework import status
-from datetime import date, datetime
-from django.utils import timezone
-from api.models import (
-    UserType, User, ServiceCategory, Service, Order,
-    TechnicianSkill, TechnicianAvailability, VerificationDocument
-)
+from rest_framework.test import APITestCase
+from django.urls import reverse
+from api.models import TechnicianSkill, User, Service, ServiceCategory
+from api.models.users import UserType
+from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 
-class TechnicianSkillAPITests(TestCase):
+class TechnicianSkillTests(APITestCase):
     def setUp(self):
-        self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
-        self.register_url = '/api/register/'
+        self.client_usertype = UserType.objects.create(user_type_name='client')
+        self.technician_usertype = UserType.objects.create(user_type_name='technician')
+        self.admin_usertype = UserType.objects.create(user_type_name='admin')
 
-        # Register a user and get tokens
-        self.user_data = {
-            "email": "skilluser@example.com",
-            "username": "skilluser",
-            "password": "skillpassword123",
-            "password2": "skillpassword123",
-            "first_name": "Skill",
-            "last_name": "User",
-            "phone_number": "4444444444",
-            "address": "4 Skill St",
-            # user_type is now optional and defaults to 1 in the model
-        }
-        response = self.client.post(self.register_url, self.user_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.access_token = response.data['tokens']['access']
-
-        # Authenticate the client
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
-
-        self.technician_user = User.objects.create(
-            first_name="Skill", last_name="Tech", email="skilltech@example.com",
-            password="skilltechpassword", registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="9988776655",
-            username="skilltech"
+        self.client_user = User.objects.create_user(
+            username='clientuser',
+            email='client@example.com',
+            password='password123',
+            user_type=self.client_usertype
         )
-        self.category = ServiceCategory.objects.create(category_name="SkillTestCategory", description="Category for skill test")
+        self.technician_user = User.objects.create_user(
+            username='techuser',
+            email='technician@example.com',
+            password='password123',
+            user_type=self.technician_usertype
+        )
+        self.other_technician_user = User.objects.create_user(
+            username='othertech',
+            email='othertechnician@example.com',
+            password='password123',
+            user_type=self.technician_usertype
+        )
+        self.admin_user = User.objects.create(
+            email="admin@example.com",
+            username="adminuser",
+            password=make_password("adminpassword123"),
+            user_type=self.admin_usertype,
+            is_staff=True,
+            is_superuser=True
+        )
+
+        self.service_category = ServiceCategory.objects.create(category_name='Electronics Repair')
         self.service = Service.objects.create(
-            category=self.category, service_name="SkillTestService", description="Service for skill test",
-            service_type="Installation", base_inspection_fee=30.00
+            category=self.service_category,
+            service_name='Test Service',
+            description='Description for test service',
+            service_type='Repair',
+            base_inspection_fee=50.00
         )
+        self.other_service = Service.objects.create(
+            category=self.service_category,
+            service_name='Other Service',
+            description='Description for other service',
+            service_type='Installation',
+            base_inspection_fee=75.00
+        )
+
+        self.skill = TechnicianSkill.objects.create(
+            technician_user=self.technician_user,
+            service=self.service,
+            experience_level='Intermediate'
+        )
+        self.other_skill = TechnicianSkill.objects.create(
+            technician_user=self.other_technician_user,
+            service=self.other_service,
+            experience_level='Expert'
+        )
+
         self.skill_data = {
-            "technician_user": self.technician_user.user_id,
-            "service": self.service.service_id,
-            "experience_level": "Expert"
-        }
-        self.updated_skill_data = {
-            "technician_user": self.technician_user.user_id,
-            "service": self.service.service_id,
-            "experience_level": "Master"
+            'technician_user': self.technician_user.user_id,
+            'service': self.other_service.service_id,
+            'experience_level': 'Beginner'
         }
 
-    def test_create_technicianskill_authenticated(self):
-        response = self.client.post('/api/technicianskills/', self.skill_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(TechnicianSkill.objects.count(), 1)
-        self.assertEqual(TechnicianSkill.objects.get().experience_level, 'Expert')
+        self.list_url = reverse('technicianskill-list')
+        self.detail_url = reverse('technicianskill-detail', args=[self.skill.id])
+        self.other_detail_url = reverse('technicianskill-detail', args=[self.other_skill.id])
 
-    def test_create_technicianskill_unauthenticated(self):
-        self.client.credentials() # Clear credentials
-        response = self.client.post('/api/technicianskills/', self.skill_data, format='json')
+    def get_auth_client(self, user):
+        token = str(RefreshToken.for_user(user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
+        return self.client
+
+    def test_create_skill_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.post(self.list_url, self.skill_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_get_all_technicianskills_authenticated(self):
-        TechnicianSkill.objects.create(
-            technician_user=self.technician_user, service=self.service, experience_level="Beginner"
-        )
-        response = self.client.get('/api/technicianskills/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+    def test_create_skill_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.post(self.list_url, self.skill_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_get_single_technicianskill_authenticated(self):
-        skill = TechnicianSkill.objects.create(
-            technician_user=self.technician_user, service=self.service, experience_level="Intermediate"
-        )
-        response = self.client.get(f'/api/technicianskills/{skill.id}/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['experience_level'], 'Intermediate')
+    def test_create_skill_technician_owner(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.post(self.list_url, self.skill_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(TechnicianSkill.objects.count(), 3)
 
-    def test_update_technicianskill_authenticated(self):
-        skill = TechnicianSkill.objects.create(
-            technician_user=self.technician_user, service=self.service, experience_level="Journeyman"
-        )
-        response = self.client.put(f'/api/technicianskills/{skill.id}/', self.updated_skill_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        skill.refresh_from_db()
-        self.assertEqual(skill.experience_level, 'Master')
+    def test_create_skill_for_other_technician_forbidden(self):
+        client = self.get_auth_client(self.technician_user)
+        skill_data_for_other = self.skill_data.copy()
+        skill_data_for_other['technician_user'] = self.other_technician_user.user_id
+        response = client.post(self.list_url, skill_data_for_other, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_delete_technicianskill_authenticated(self):
-        skill = TechnicianSkill.objects.create(
-            technician_user=self.technician_user, service=self.service, experience_level="Apprentice"
-        )
-        response = self.client.delete(f'/api/technicianskills/{skill.id}/')
+    def test_create_skill_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.post(self.list_url, self.skill_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_list_skills_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK) # Publicly accessible
+
+    def test_list_skills_authenticated(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_retrieve_skill_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK) # Publicly accessible
+
+    def test_retrieve_skill_authenticated(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_update_skill_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(self.detail_url, {'experience_level': 'Expert'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_update_skill_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.patch(self.detail_url, {'experience_level': 'Expert'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_own_skill_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.patch(self.detail_url, {'experience_level': 'Expert'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.skill.refresh_from_db()
+        self.assertEqual(self.skill.experience_level, 'Expert')
+
+    def test_update_other_skill_technician_forbidden(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.patch(self.other_detail_url, {'experience_level': 'Master'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_skill_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.patch(self.detail_url, {'experience_level': 'Master'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.skill.refresh_from_db()
+        self.assertEqual(self.skill.experience_level, 'Master')
+
+    def test_delete_skill_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_skill_client_forbidden(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_own_skill_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(TechnicianSkill.objects.count(), 0)
+        self.assertFalse(TechnicianSkill.objects.filter(pk=self.skill.pk).exists())
+
+    def test_delete_other_skill_technician_forbidden(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.delete(self.other_detail_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_skill_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(TechnicianSkill.objects.filter(pk=self.skill.pk).exists())

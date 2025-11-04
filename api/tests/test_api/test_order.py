@@ -7,47 +7,54 @@ from api.models import (
     UserType, User, ServiceCategory, Service, Order,
     TechnicianSkill, TechnicianAvailability, VerificationDocument
 )
+from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 
 class OrderAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
-        self.register_url = '/api/register/'
-
-        # Register a user and get tokens
-        self.user_data = {
-            "email": "orderuser@example.com",
-            "username": "orderuser",
-            "password": "orderpassword123",
-            "password2": "orderpassword123",
-            "first_name": "Order",
-            "last_name": "User",
-            "phone_number": "6666666666",
-            "address": "6 Order St",
-            # user_type is now optional and defaults to 1 in the model
-        }
-        response = self.client.post(self.register_url, self.user_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.access_token = response.data['tokens']['access']
-
-        # Authenticate the client
-        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + self.access_token)
 
         # Create UserTypes
-        self.client_usertype, created = UserType.objects.get_or_create(user_type_id=1, user_type_name="Customer")
-        self.tech_usertype, created = UserType.objects.get_or_create(user_type_name="Technician")
+        self.client_usertype, created = UserType.objects.get_or_create(user_type_name="client")
+        self.technician_usertype, created = UserType.objects.get_or_create(user_type_name="technician")
+        self.admin_usertype, created = UserType.objects.get_or_create(user_type_name="admin")
 
         # Create Users
-        self.client_user = User.objects.create(
-            first_name="Client", last_name="User",
-            email="clientuser@example.com", password="clientpassword",
-            registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="3344556677", username="clientuser"
+        self.client_user = User.objects.create_user(
+            username='clientuser',
+            email='client@example.com',
+            password='password123',
+            user_type=self.client_usertype
         )
-        self.technician_user = User.objects.create(
-            user_type=self.tech_usertype, first_name="Order", last_name="Tech",
-            email="ordertech@example.com", password="ordertechpassword",
-            registration_date=timezone.make_aware(datetime(2025, 1, 1, 0, 0, 0)), phone_number="4455667788", username="ordertech"
+        self.other_client_user = User.objects.create_user(
+            username='otherclient',
+            email='otherclient@example.com',
+            password='password123',
+            user_type=self.client_usertype
+        )
+        self.technician_user = User.objects.create_user(
+            username='techuser',
+            email='technician@example.com',
+            password='password123',
+            user_type=self.technician_usertype
+        )
+        self.other_technician_user = User.objects.create_user(
+            username='othertech',
+            email='othertech@example.com',
+            password='password123',
+            user_type=self.technician_usertype
+        )
+        self.admin_user = User.objects.create(
+            email="admin@example.com",
+            username="adminuser",
+            password=make_password("adminpassword123"),
+            first_name="Admin",
+            last_name="User",
+            phone_number="0987654321",
+            address="456 Admin Ave",
+            user_type=self.admin_usertype,
+            is_staff=True,
+            is_superuser=True
         )
 
         # Create ServiceCategory and Service
@@ -57,84 +64,191 @@ class OrderAPITests(TestCase):
             service_type="Repair", base_inspection_fee=60.00
         )
 
+        # Create Orders
+        self.order = Order.objects.create(
+            client_user=self.client_user,
+            service=self.service,
+            technician_user=self.technician_user,
+            order_type="Emergency",
+            problem_description="Leaky faucet in kitchen.",
+            requested_location="123 Main St, Anytown",
+            scheduled_date="2025-02-01",
+            scheduled_time_start="10:00",
+            scheduled_time_end="12:00",
+            order_status="pending",
+            creation_timestamp="2025-01-30",
+        )
+        self.other_order = Order.objects.create(
+            client_user=self.other_client_user,
+            service=self.service,
+            technician_user=self.other_technician_user,
+            order_type="Scheduled",
+            problem_description="Broken window.",
+            requested_location="456 Other St, Othertown",
+            scheduled_date="2025-02-02",
+            scheduled_time_start="13:00",
+            scheduled_time_end="15:00",
+            order_status="completed",
+            creation_timestamp="2025-01-31",
+        )
+
         self.order_data = {
             "client_user": self.client_user.user_id,
             "service": self.service.service_id,
             "technician_user": self.technician_user.user_id,
             "order_type": "Emergency",
-            "problem_description": "Leaky faucet in kitchen.",
+            "problem_description": "New leaky faucet in kitchen.",
             "requested_location": "123 Main St, Anytown",
-            "scheduled_date": "2025-02-01",
-            "scheduled_time_start": "10:00",
-            "scheduled_time_end": "12:00",
-            "order_status": "pending", # Changed to lowercase to match choices
-            "creation_timestamp": "2025-01-30",
+            "scheduled_date": "2025-02-03",
+            "scheduled_time_start": "09:00",
+            "scheduled_time_end": "11:00",
+            "order_status": "pending",
+            "creation_timestamp": "2025-02-01",
         }
         self.updated_order_data = {
-            "client_user": self.client_user.user_id,
-            "service": self.service.service_id,
-            "technician_user": self.technician_user.user_id,
             "order_type": "Scheduled",
             "problem_description": "Fixed leaky faucet in kitchen.",
-            "requested_location": "123 Main St, Anytown",
-            "scheduled_date": "2025-02-01",
-            "scheduled_time_start": "10:00",
-            "scheduled_time_end": "12:00",
-            "order_status": "completed", # Changed to lowercase to match choices
-            "creation_timestamp": "2025-01-30",
+            "order_status": "completed",
         }
-    def test_create_order_authenticated(self):
-        response = self.client.post('/api/orders/', self.order_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Order.objects.count(), 1)
-        self.assertEqual(Order.objects.get().problem_description, 'Leaky faucet in kitchen.')
+
+        self.list_url = '/api/orders/'
+        self.detail_url = f'/api/orders/{self.order.order_id}/'
+        self.other_detail_url = f'/api/orders/{self.other_order.order_id}/'
+
+    def get_auth_client(self, user):
+        token = str(RefreshToken.for_user(user).access_token)
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
+        return self.client
 
     def test_create_order_unauthenticated(self):
-        self.client.credentials() # Clear credentials
-        response = self.client.post('/api/orders/', self.order_data, format='json')
+        self.client.force_authenticate(user=None)
+        response = self.client.post(self.list_url, self.order_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_get_all_orders_authenticated(self):
-        Order.objects.create(
-            client_user=self.client_user, service=self.service, technician_user=self.technician_user,
-            order_type="Scheduled", problem_description="Another order", requested_location="456 Oak Ave",
-            scheduled_date="2025-03-01", scheduled_time_start="09:00", scheduled_time_end="11:00",
-            order_status="Pending", creation_timestamp="2025-02-28"
-        )
-        response = self.client.get('/api/orders/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+    def test_create_order_client(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.post(self.list_url, self.order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Order.objects.count(), 3) # 2 existing + 1 new
+        self.assertEqual(response.data['problem_description'], 'New leaky faucet in kitchen.')
 
-    def test_get_single_order_authenticated(self):
-        order = Order.objects.create(
-            client_user=self.client_user, service=self.service, technician_user=self.technician_user,
-            order_type="Emergency", problem_description="Single order", requested_location="789 Pine St",
-            scheduled_date="2025-04-01", scheduled_time_start="13:00", scheduled_time_end="15:00",
-            order_status="Pending", creation_timestamp="2025-03-30"
-        )
-        response = self.client.get(f'/api/orders/{order.order_id}/')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['problem_description'], 'Single order')
+    def test_create_order_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.post(self.list_url, self.order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Order.objects.count(), 3)
+        self.assertEqual(response.data['problem_description'], 'New leaky faucet in kitchen.')
 
-    def test_update_order_authenticated(self):
-        order = Order.objects.create(
-            client_user=self.client_user, service=self.service, technician_user=self.technician_user,
-            order_type="Emergency", problem_description="Original order", requested_location="101 Elm St",
-            scheduled_date="2025-05-01", scheduled_time_start="08:00", scheduled_time_end="10:00",
-            order_status="Pending", creation_timestamp="2025-04-30"
-        )
-        response = self.client.put(f'/api/orders/{order.order_id}/', self.updated_order_data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        order.refresh_from_db()
-        self.assertEqual(order.order_status, 'completed')
+    def test_create_order_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.post(self.list_url, self.order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Order.objects.count(), 3)
 
-    def test_delete_order_authenticated(self):
-        order = Order.objects.create(
-            client_user=self.client_user, service=self.service, technician_user=self.technician_user,
-            order_type="Scheduled", problem_description="Order to delete", requested_location="202 Birch Ln",
-            scheduled_date="2025-06-01", scheduled_time_start="14:00", scheduled_time_end="16:00",
-            order_status="Pending", creation_timestamp="2025-05-30"
-        )
-        response = self.client.delete(f'/api/orders/{order.order_id}/')
+    def test_list_orders_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_list_orders_client(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1) # Only orders belonging to the authenticated client
+
+    def test_list_orders_technician(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1) # Only orders assigned to the authenticated technician
+
+    def test_list_orders_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2) # Admin sees all orders
+
+    def test_retrieve_order_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_retrieve_order_client_owner(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['problem_description'], 'Leaky faucet in kitchen.')
+
+    def test_retrieve_order_client_not_owner_forbidden(self):
+        client = self.get_auth_client(self.other_client_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieve_order_technician_assigned(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['problem_description'], 'Leaky faucet in kitchen.')
+
+    def test_retrieve_order_technician_not_assigned_forbidden(self):
+        client = self.get_auth_client(self.other_technician_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_retrieve_order_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['problem_description'], 'Leaky faucet in kitchen.')
+
+    def test_update_order_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.patch(self.detail_url, self.updated_order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_update_order_client_owner(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.patch(self.detail_url, self.updated_order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK) # Clients can update their own orders
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.order_status, 'completed')
+
+    def test_update_order_technician_assigned(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.patch(self.detail_url, self.updated_order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.order_status, 'completed')
+
+    def test_update_order_technician_not_assigned_forbidden(self):
+        client = self.get_auth_client(self.other_technician_user)
+        response = client.patch(self.detail_url, self.updated_order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_update_order_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.patch(self.detail_url, self.updated_order_data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.order_status, 'completed')
+
+    def test_delete_order_unauthenticated(self):
+        self.client.force_authenticate(user=None)
+        response = self.client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_order_client_owner(self):
+        client = self.get_auth_client(self.client_user)
+        response = client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT) # Clients can delete their own orders
+
+    def test_delete_order_technician_assigned(self):
+        client = self.get_auth_client(self.technician_user)
+        response = client.delete(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT) # Technicians can delete their assigned orders
+
+    def test_delete_order_admin(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Order.objects.count(), 0)
+        self.assertEqual(Order.objects.count(), 1) # 2 initially, 1 deleted, 1 remaining (other_order)
