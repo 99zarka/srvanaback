@@ -17,12 +17,6 @@ class CustomUserManager(BaseUserManager):
         if not email:
             raise ValueError('The Email field must be set')
         email = self.normalize_email(email)
-        # Handle referral_code to ensure it's None if not provided or empty
-        if 'referral_code' in extra_fields and extra_fields['referral_code'] == '':
-            extra_fields['referral_code'] = None
-        elif 'referral_code' not in extra_fields:
-            extra_fields['referral_code'] = None
-
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
