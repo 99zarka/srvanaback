@@ -30,7 +30,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('email', 'username', 'password', 'password2', 'first_name', 'last_name', 'phone_number', 'address', 'user_type', 'referral_code')
+        fields = ('email', 'username', 'password', 'password2', 'first_name', 'last_name', 'phone_number', 'address', 'user_type')
         extra_kwargs = {
             'password': {'write_only': True},
             'first_name': {'required': False},
@@ -38,7 +38,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             'phone_number': {'required': False},
             'address': {'required': False},
             'user_type': {'required': False}, # Make user_type optional in serializer
-            'referral_code': {'required': False}, # Make referral_code optional in serializer
         }
 
     def validate(self, attrs):
@@ -57,11 +56,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         if phone_number == '':
             validated_data['phone_number'] = None
 
-        # Convert empty string referral_code to None to allow unique=True with multiple NULLs
-        referral_code = validated_data.get('referral_code')
-        if referral_code == '':
-            validated_data['referral_code'] = None
-
         user = User.objects.create_user(
             email=validated_data['email'],
             username=validated_data.get('username'),
@@ -69,7 +63,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             last_name=validated_data.get('last_name', ''),
             phone_number=validated_data.get('phone_number'), # Use the potentially modified phone_number
             address=validated_data.get('address', ''),
-            referral_code=validated_data.get('referral_code'), # Use the potentially modified referral_code
             # user_type will now be set by the model's default
             password=validated_data['password']
         )
