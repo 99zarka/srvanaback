@@ -17,6 +17,9 @@ class CustomUserManager(BaseUserManager):
         if not email:
             raise ValueError('The Email field must be set')
         email = self.normalize_email(email)
+        # Convert empty username to None to avoid unique constraint violation for empty strings
+        if 'username' in extra_fields and extra_fields['username'] == '':
+            extra_fields['username'] = None
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
@@ -61,7 +64,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['first_name', 'last_name', 'registration_date'] # Removed 'user_type' as it has a default
+    REQUIRED_FIELDS = ['first_name', 'last_name'] # Removed 'user_type' as it has a default
 
     class Meta:
         db_table = 'USER' # Explicitly set table name to match SQL
