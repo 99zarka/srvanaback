@@ -384,12 +384,6 @@ class NotificationViewSet(viewsets.ModelViewSet):
             serializer.validated_data.pop('user')
         serializer.save()
 
-    def perform_update(self, serializer):
-        # Ensure that the user field is not updated during a PATCH/PUT request
-        if 'user' in serializer.validated_data:
-            serializer.validated_data.pop('user')
-        serializer.save()
-
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
