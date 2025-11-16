@@ -8,8 +8,10 @@ from api.models import ProjectOffer, User, Order, Service, ServiceCategory
 from api.models.users import UserType
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.db import transaction
 
 class ProjectOfferTests(APITestCase):
+    @transaction.atomic
     def setUp(self):
         self.client_usertype = UserType.objects.create(user_type_name='client')
         self.technician_usertype = UserType.objects.create(user_type_name='technician')
@@ -19,37 +21,35 @@ class ProjectOfferTests(APITestCase):
             username='clientuser',
             email='client@example.com',
             password='password123',
-            user_type=self.client_usertype
+            user_type_name=self.client_usertype.user_type_name
         )
         self.other_client_user = User.objects.create_user(
             username='otherclient',
             email='otherclient@example.com',
             password='password123',
-            user_type=self.client_usertype
+            user_type_name=self.client_usertype.user_type_name
         )
         self.technician_user = User.objects.create_user(
             username='techuser',
             email='technician@example.com',
             password='password123',
-            user_type=self.technician_usertype
+            user_type_name=self.technician_usertype.user_type_name
         )
         self.other_technician_user = User.objects.create_user(
             username='othertech',
             email='othertech@example.com',
             password='password123',
-            user_type=self.technician_usertype
+            user_type_name=self.technician_usertype.user_type_name
         )
-        self.admin_user = User.objects.create(
+        self.admin_user = User.objects.create_superuser(
             email="admin@example.com",
             username="adminuser",
-            password=make_password("adminpassword123"),
+            password="adminpassword123",
             first_name="Admin",
             last_name="User",
             phone_number="0987654321",
             address="456 Admin Ave",
-            user_type=self.admin_usertype,
-            is_staff=True,
-            is_superuser=True
+            user_type_name=self.admin_usertype.user_type_name,
         )
 
         self.service_category = ServiceCategory.objects.create(category_name='Electronics Repair')

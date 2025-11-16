@@ -33,6 +33,44 @@ from .serializers import (
 )
 from rest_framework import serializers
 
+class OwnerFilteredQuerysetMixin:
+    owner_field = 'user' # Default field to filter by for non-admin users
+
+    def get_filtered_queryset(self, user, base_queryset):
+        """
+        Returns the queryset for non-admin authenticated users,
+        filtered from the provided base_queryset.
+        Can be overridden in specific ViewSets for custom filtering.
+        """
+        # If the owner_field is a direct foreign key to User, use the User object.
+        # If it's a primary key field (like 'user_id'), use the user's primary key.
+        if self.owner_field.endswith('_id'):
+            filter_kwargs = {self.owner_field: user.pk}
+        else:
+            filter_kwargs = {self.owner_field: user}
+        return base_queryset.filter(**filter_kwargs)
+
+    def get_queryset(self):
+        user = self.request.user
+        base_queryset = super().get_queryset() # Get the initial queryset from the next class in MRO (e.g., ModelViewSet)
+
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            # For detail actions, always return the full queryset.
+            # Object-level permissions will handle access control (403 if forbidden).
+            return base_queryset
+        
+        if user.is_authenticated and user.user_type.user_type_name == 'admin':
+            return base_queryset # Admin sees all for list actions
+        elif user.is_authenticated:
+            return self.get_filtered_queryset(user, base_queryset) # Authenticated non-admin users get filtered for list actions
+        else: # User is not authenticated
+            # Check if any permission allows unauthenticated read access for list actions
+            has_read_only_permission = any(isinstance(perm, permissions.AllowAny) or isinstance(perm, IsAuthenticatedOrReadOnly) for perm in self.get_permissions())
+            if has_read_only_permission and self.action == 'list':
+                return base_queryset # Allow unauthenticated read access for list
+            # If not read-only, or not list, then no access for unauthenticated users
+            return base_queryset.none()
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (permissions.AllowAny,)
@@ -68,9 +106,10 @@ class UserTypeViewSet(viewsets.ModelViewSet):
             self.permission_classes = [permissions.AllowAny] # Publicly accessible
         return super().get_permissions()
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    owner_field = 'user_id'
 
     def get_permissions(self):
         if self.action == 'list':
@@ -81,17 +120,12 @@ class UserViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAdminUser | permissions.AllowAny] # Allow any user to create an account (handled by RegisterView)
         return super().get_permissions()
 
-    def get_queryset(self):
-        user = self.request.user
-        # Admins can see all users
-        if user.is_authenticated and user.user_type.user_type_name == 'admin':
-            return User.objects.all()
-        # Other authenticated users can only see their own profile for list action
-        if user.is_authenticated:
-            if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-                return User.objects.all() # For detail actions, return all objects and let object-level permissions handle filtering
-            return User.objects.filter(user_id=user.user_id)
-        return User.objects.none() # Unauthenticated users cannot see any users
+    def get_filtered_queryset(self, user, base_queryset):
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            # For these actions, return the full queryset and let object-level permissions handle access
+            return base_queryset
+        # For 'list' action, filter by owner
+        return super().get_filtered_queryset(user, base_queryset)
 
 class ServiceCategoryViewSet(viewsets.ModelViewSet):
     queryset = ServiceCategory.objects.all()
@@ -115,7 +149,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAuthenticatedOrReadOnly]
         return super().get_permissions()
 
-class TechnicianAvailabilityViewSet(viewsets.ModelViewSet):
+class TechnicianAvailabilityViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = TechnicianAvailability.objects.all()
     serializer_class = TechnicianAvailabilitySerializer
 
@@ -128,27 +162,32 @@ class TechnicianAvailabilityViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        # Allow unauthenticated users to view all availability
-        if self.request.method in permissions.SAFE_METHODS and not user.is_authenticated:
-            return TechnicianAvailability.objects.all()
-        # Admins can see all availability
-        if user.is_authenticated and user.user_type.user_type_name == 'admin':
-            return TechnicianAvailability.objects.all()
-        # Technicians can only see their own availability
-        if user.is_authenticated and user.user_type.user_type_name == 'technician':
-            return TechnicianAvailability.objects.filter(technician_user=user)
-        # Clients can view all availability
-        if user.is_authenticated and user.user_type.user_type_name == 'client':
-            return TechnicianAvailability.objects.all()
-        return TechnicianAvailability.objects.none() # Should not be reached if permissions are set correctly
+        # Get the initial queryset from the ModelViewSet (skipping OwnerFilteredQuerysetMixin's get_queryset)
+        base_queryset = super(OwnerFilteredQuerysetMixin, self).get_queryset()
 
-class TechnicianSkillViewSet(viewsets.ModelViewSet):
+        if user.is_authenticated and user.user_type.user_type_name == 'admin':
+            return base_queryset
+        elif user.is_authenticated:
+            # Authenticated non-admin technicians can only see their own availability for all actions.
+            # Clients can view all availability.
+            if user.user_type.user_type_name == 'technician':
+                return base_queryset.filter(technician_user=user)
+            elif user.user_type.user_type_name == 'client':
+                return base_queryset # Clients can view all availability
+        else: # User is not authenticated
+            # Check if any permission allows unauthenticated read access for list/retrieve actions
+            has_read_only_permission = any(isinstance(perm, permissions.AllowAny) or isinstance(perm, IsAuthenticatedOrReadOnly) for perm in self.get_permissions())
+            if has_read_only_permission and self.action in ['list', 'retrieve']:
+                return base_queryset # Allow unauthenticated read access for list/retrieve
+        return base_queryset.none()
+
+class TechnicianSkillViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = TechnicianSkill.objects.all()
     serializer_class = TechnicianSkillSerializer
+    owner_field = 'technician_user'
 
     def get_permissions(self):
         if self.action == 'create':
-            # For create action, check if a technician is trying to create a skill for another technician
             user = self.request.user
             if user.is_authenticated and user.user_type.user_type_name == 'technician':
                 requested_technician_user_id = self.request.data.get('technician_user')
@@ -161,38 +200,35 @@ class TechnicianSkillViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAuthenticatedOrReadOnly]
         return super().get_permissions()
 
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            if user.user_type.user_type_name == 'admin':
-                return TechnicianSkill.objects.all()
-            elif user.user_type.user_type_name == 'technician':
-                if self.action == 'list':
-                    return TechnicianSkill.objects.filter(technician_user=user)
-                # For detail actions, return all objects and let object-level permissions handle filtering
-                return TechnicianSkill.objects.all()
-        # For unauthenticated users or clients, allow viewing all skills (publicly accessible)
-        # For other actions (create, update, delete) for non-admin/non-technician, permissions will handle it.
-        return TechnicianSkill.objects.all() if self.request.method in permissions.SAFE_METHODS else TechnicianSkill.objects.none()
+    def get_filtered_queryset(self, user, base_queryset):
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            # For these actions, return the full queryset and let object-level permissions handle access
+            return base_queryset
+        elif self.action == 'list':
+            if user.user_type.user_type_name == 'technician':
+                return base_queryset.filter(technician_user=user)
+            elif user.user_type.user_type_name == 'client':
+                return base_queryset # Clients can see all skills
+        return base_queryset.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.is_authenticated:
-            if user.user_type.user_type_name == 'technician':
-                serializer.save(technician_user=user)
-            elif user.user_type.user_type_name == 'admin':
-                # Admins can create skills for any technician, so technician_user must be provided
-                if 'technician_user' not in self.request.data:
-                    raise serializers.ValidationError({"technician_user": "This field is required for admin users."})
-                serializer.save()
-            else:
-                raise PermissionDenied("Only technicians and admins can create skills.")
-        else:
+        if not user.is_authenticated:
             raise PermissionDenied("Authentication required to create skills.")
 
-class VerificationDocumentViewSet(viewsets.ModelViewSet):
+        if user.user_type.user_type_name == 'technician':
+            serializer.save(technician_user=user)
+        elif user.user_type.user_type_name == 'admin':
+            if 'technician_user' not in self.request.data:
+                raise serializers.ValidationError({"technician_user": "This field is required for admin users."})
+            serializer.save()
+        else:
+            raise PermissionDenied("Only technicians and admins can create skills.")
+
+class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = VerificationDocument.objects.all()
     serializer_class = VerificationDocumentSerializer
+    owner_field = 'technician_user'
 
     def get_permissions(self):
         if self.action == 'create':
@@ -203,44 +239,52 @@ class VerificationDocumentViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAdminUser | (IsTechnicianUser & IsTechnicianOwnerOrAdmin)]
         return super().get_permissions()
 
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            if user.user_type.user_type_name == 'admin':
-                return VerificationDocument.objects.all()
-            elif user.user_type.user_type_name == 'technician':
-                if self.action == 'list':
-                    return VerificationDocument.objects.filter(technician_user=user)
-                return VerificationDocument.objects.all() # For detail actions, return all objects and let object-level permissions handle filtering
-        return VerificationDocument.objects.none() # Unauthenticated users cannot see any documents
+    def get_filtered_queryset(self, user, base_queryset):
+        if user.user_type.user_type_name == 'technician':
+            return base_queryset.filter(technician_user=user)
+        return base_queryset.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.is_authenticated and user.user_type.user_type_name == 'technician':
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create verification documents.")
+
+        if user.user_type.user_type_name == 'technician':
             requested_technician_user_id = self.request.data.get('technician_user')
             if requested_technician_user_id and requested_technician_user_id != user.user_id:
                 raise PermissionDenied("Technicians can only create verification documents for themselves.")
             serializer.save(technician_user=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'admin':
+        elif user.user_type.user_type_name == 'admin':
             if 'technician_user' not in self.request.data:
                 raise serializers.ValidationError({"technician_user": "This field is required for admin users."})
             serializer.save()
         else:
             raise PermissionDenied("Only technicians and admins can create verification documents.")
 
-class OrderViewSet(viewsets.ModelViewSet):
+class OrderViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAdminUser | (IsClientUser & IsClientOwnerOrAdmin) | (IsTechnicianUser & IsTechnicianOwnerOrAdmin)]
+    owner_field = 'client_user' # Default owner field for filtering
 
     def get_queryset(self):
-        if self.request.user.is_authenticated and self.request.user.user_type.user_type_name == 'client':
-            return Order.objects.filter(client_user=self.request.user)
-        elif self.request.user.is_authenticated and self.request.user.user_type.user_type_name == 'technician':
-            return Order.objects.filter(technician_user=self.request.user)
-        return super().get_queryset()
+        user = self.request.user
+        # Get the initial queryset from the ModelViewSet (skipping OwnerFilteredQuerysetMixin's get_queryset)
+        base_queryset = super(OwnerFilteredQuerysetMixin, self).get_queryset()
 
-class ProjectOfferViewset(viewsets.ModelViewSet):
+        if user.is_authenticated and user.user_type.user_type_name == 'admin':
+            return base_queryset
+        elif user.is_authenticated:
+            # Authenticated non-admin users get filtered for all actions (list, retrieve, update, destroy)
+            # If an object is not in their filtered queryset, it will result in a 404.
+            # Object-level permissions will then handle specific action permissions (e.g., 403 if found but no update permission).
+            if user.user_type.user_type_name == 'client':
+                return base_queryset.filter(client_user=user)
+            elif user.user_type.user_type_name == 'technician':
+                return base_queryset.filter(technician_user=user)
+        return base_queryset.none()
+
+class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = ProjectOffer.objects.all()
     serializer_class = ProjectOfferSerializer
 
@@ -253,136 +297,133 @@ class ProjectOfferViewset(viewsets.ModelViewSet):
             self.permission_classes = [IsAdminUser | (IsTechnicianUser & IsTechnicianOwnerOrAdmin) | (IsClientUser & IsClientOwnerOrAdmin)]
         return super().get_permissions()
 
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            if user.user_type.user_type_name == 'admin':
-                return ProjectOffer.objects.all()
-            elif user.user_type.user_type_name == 'technician':
-                if self.action == 'list':
-                    return ProjectOffer.objects.filter(technician_user=user)
-                return ProjectOffer.objects.all() # For detail actions, return all objects and let object-level permissions handle filtering
-            elif user.user_type.user_type_name == 'client':
-                if self.action == 'list':
-                    return ProjectOffer.objects.filter(order__client_user=user) # Clients can see offers related to their orders
-                return ProjectOffer.objects.all() # For detail actions, return all objects and let object-level permissions handle filtering
-        return ProjectOffer.objects.none()
+    def get_filtered_queryset(self, user, base_queryset):
+        if user.user_type.user_type_name == 'technician':
+            if self.action == 'list':
+                return base_queryset.filter(technician_user=user)
+            return base_queryset # For detail actions, rely on object-level permissions
+        elif user.user_type.user_type_name == 'client':
+            if self.action == 'list':
+                return base_queryset.filter(order__client_user=user)
+            return base_queryset # For detail actions, rely on object-level permissions
+        return base_queryset.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.is_authenticated and user.user_type.user_type_name == 'technician':
-            # Ensure the technician_user in the offer data matches the authenticated technician
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create project offers.")
+
+        if user.user_type.user_type_name == 'technician':
             requested_technician_user_id = self.request.data.get('technician_user')
             if requested_technician_user_id and requested_technician_user_id != user.user_id:
                 raise PermissionDenied("Technicians can only create offers for themselves.")
             serializer.save(technician_user=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'admin':
-            # Admins can create offers for any technician, so technician_user must be provided in data
+        elif user.user_type.user_type_name == 'admin':
             if 'technician_user' not in self.request.data:
                 raise serializers.ValidationError({"technician_user": "This field is required for admin users."})
             serializer.save()
         else:
             raise PermissionDenied("Only technicians and admins can create project offers.")
 
-class AddressViewSet(viewsets.ModelViewSet):
+class AddressViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Address.objects.all()
     serializer_class = AddressSerializer
     permission_classes = [IsAdminUser | (IsClientUser & IsUserOwnerOrAdmin)]
+    owner_field = 'user'
 
-    def get_queryset(self):
-        if self.request.user.is_authenticated and self.request.user.user_type.user_type_name == 'admin':
-            return Address.objects.all()
-        elif self.request.user.is_authenticated:
-            if self.action in ['list', 'create']:
-                return Address.objects.filter(user=self.request.user)
-            # For detail actions, return all objects and let object-level permissions handle filtering
-            return Address.objects.all()
-        return super().get_queryset()
+    def get_filtered_queryset(self, user, base_queryset):
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            # For these actions, return the full queryset and let object-level permissions handle access
+            return base_queryset
+        # For 'list' action, filter by owner
+        return super().get_filtered_queryset(user, base_queryset)
 
-class PaymentMethodViewSet(viewsets.ModelViewSet):
+class PaymentMethodViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = PaymentMethod.objects.all()
     serializer_class = PaymentMethodSerializer
     permission_classes = [IsAdminUser | ((IsClientUser | IsTechnicianUser) & IsUserOwnerOrAdmin)]
+    owner_field = 'user'
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated:
-            if user.user_type.user_type_name == 'admin':
-                return PaymentMethod.objects.all()
-            elif user.user_type.user_type_name in ['client', 'technician']:
-                return PaymentMethod.objects.filter(user=user)
-            else:
-                return PaymentMethod.objects.none()
-        return PaymentMethod.objects.none()
+        base_queryset = super().get_queryset()
+
+        if user.is_authenticated and user.user_type.user_type_name == 'admin':
+            return base_queryset
+        elif user.is_authenticated and user.user_type.user_type_name in ['client', 'technician']:
+            return base_queryset.filter(user=user)
+        return base_queryset.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.is_authenticated and user.user_type.user_type_name in ['client', 'technician']:
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create payment methods.")
+
+        if user.user_type.user_type_name in ['client', 'technician']:
             if 'user' in self.request.data and self.request.data['user'] != user.user_id:
                 raise PermissionDenied("Users can only create payment methods for themselves.")
             serializer.save(user=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'admin':
+        elif user.user_type.user_type_name == 'admin':
             if 'user' not in self.request.data:
                 raise serializers.ValidationError({"user": "This field is required for admin users."})
             serializer.save()
         else:
             raise PermissionDenied("Only clients, technicians, and admins can create payment methods.")
 
-class NotificationPreferenceViewSet(viewsets.ModelViewSet):
+class NotificationPreferenceViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = NotificationPreference.objects.all()
     serializer_class = NotificationPreferenceSerializer
     permission_classes = [IsAdminUser | (IsClientUser & IsUserOwnerOrAdmin)]
+    owner_field = 'user'
 
-    def get_queryset(self):
-        if self.request.user.is_authenticated:
-            if self.request.user.user_type.user_type_name == 'admin':
-                return NotificationPreference.objects.all()
-            elif self.request.user.user_type.user_type_name == 'technician':
-                return NotificationPreference.objects.none() # Technicians should not access notification preferences
-            else: # Client user
-                # For detail actions, return all objects and let object-level permissions handle filtering
-                if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-                    return NotificationPreference.objects.all()
-                # For list actions, return only preferences belonging to the authenticated user
-                return NotificationPreference.objects.filter(user=self.request.user)
-        return super().get_queryset()
+    def get_filtered_queryset(self, user, base_queryset):
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            # For these actions, return the full queryset and let object-level permissions handle access
+            return base_queryset
+        # For 'list' action, filter by owner
+        if user.user_type.user_type_name == 'client':
+            return base_queryset.filter(user=user)
+        return base_queryset.none()
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.is_authenticated and user.user_type.user_type_name == 'client':
-            # Clients can only create payment methods for themselves
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create notification preferences.")
+
+        if user.user_type.user_type_name == 'client':
             if 'user' in self.request.data and self.request.data['user'] != user.user_id:
-                raise permissions.PermissionDenied("Clients can only create payment methods for themselves.")
+                raise PermissionDenied("Clients can only create notification preferences for themselves.")
             serializer.save(user=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'admin':
-            # Admins can create payment methods for any user, so 'user' field is required
+        elif user.user_type.user_type_name == 'admin':
             if 'user' not in self.request.data:
                 raise serializers.ValidationError({"user": "This field is required for admin users."})
             serializer.save()
         else:
-            # Other user types (e.g., technicians) should be forbidden by permission_classes
-            raise permissions.PermissionDenied("Only clients and admins can create payment methods.")
+            raise PermissionDenied("Only clients and admins can create notification preferences.")
 
-class NotificationViewSet(viewsets.ModelViewSet):
+class NotificationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
+    owner_field = 'user'
 
     def get_queryset(self):
-        if self.request.user.is_authenticated and self.request.user.user_type.user_type_name == 'admin':
-            return Notification.objects.all()
-        elif self.request.user.is_authenticated:
-            return Notification.objects.filter(user=self.request.user)
-        return super().get_queryset()
+        user = self.request.user
+        base_queryset = super().get_queryset() # Get the initial queryset from the next class in MRO (e.g., ModelViewSet)
+
+        if user.is_authenticated and user.user_type.user_type_name == 'admin':
+            return base_queryset # Admin sees all
+        elif user.is_authenticated:
+            # Authenticated non-admin users get filtered for all actions (list, retrieve, update, destroy)
+            # If an object is not in their filtered queryset, it will result in a 404.
+            # Object-level permissions will then handle specific action permissions (e.g., 403 if found but no update permission).
+            return base_queryset.filter(user=user)
+        else: # User is not authenticated
+            # Notifications are not publicly accessible
+            return base_queryset.none()
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
-
-    def perform_update(self, serializer):
-        # Ensure that the user field is not updated during a PATCH/PUT request
-        if 'user' in serializer.validated_data:
-            serializer.validated_data.pop('user')
-        serializer.save()
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
@@ -412,48 +453,50 @@ class ReviewViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
-        if user.is_authenticated and user.user_type.user_type_name == 'client':
-            # Ensure the client_user in the review data matches the authenticated client
-            requested_client_user_id = self.request.data.get('reviewer') # Changed to 'reviewer'
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create reviews.")
+
+        if user.user_type.user_type_name == 'client':
+            requested_client_user_id = self.request.data.get('reviewer')
             if requested_client_user_id and requested_client_user_id != user.user_id:
                 raise PermissionDenied("Clients can only create reviews for themselves.")
             serializer.save(reviewer=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'technician':
-            # Technicians can create reviews for services they ordered (acting as a client)
-            # Technicians can create reviews for services they ordered (acting as a client)
-            # Ensure the reviewer in the review data matches the authenticated technician
+        elif user.user_type.user_type_name == 'technician':
             requested_reviewer_id = self.request.data.get('reviewer')
             if requested_reviewer_id and requested_reviewer_id != user.user_id:
                 raise PermissionDenied("Technicians can only create reviews for themselves (as a client).")
-            # Ensure technician and order are provided when a technician creates a review
             if 'technician' not in self.request.data or 'order' not in self.request.data:
                 raise serializers.ValidationError({"detail": "Technician and order fields are required when a technician creates a review."})
             serializer.save(reviewer=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'admin':
-            # Admins can create reviews for any client/technician, so reviewer and technician must be provided
+        elif user.user_type.user_type_name == 'admin':
             if 'reviewer' not in self.request.data or 'technician' not in self.request.data:
                 raise serializers.ValidationError({"detail": "Reviewer and technician fields are required for admin users."})
             serializer.save()
         else:
             raise PermissionDenied("Only clients, technicians, and admins can create reviews.")
-class IssueReportViewSet(viewsets.ModelViewSet):
+class IssueReportViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = IssueReport.objects.all()
     serializer_class = IssueReportSerializer
     permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
+    owner_field = 'reporter'
 
-    def get_queryset(self):
-        if self.request.user.is_authenticated and self.request.user.user_type.user_type_name == 'admin':
-            return IssueReport.objects.all()
-        elif self.request.user.is_authenticated:
-            if self.action in ['list', 'create']:
-                return IssueReport.objects.filter(reporter=self.request.user)
-            # For detail actions, return all objects and let object-level permissions handle filtering
-            return IssueReport.objects.all()
-        return super().get_queryset()
+    def get_filtered_queryset(self, user, base_queryset):
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            # For these actions, return the full queryset and let object-level permissions handle access
+            return base_queryset
+        # For 'list' action, filter by owner
+        return super().get_filtered_queryset(user, base_queryset)
 
-class TransactionViewSet(viewsets.ModelViewSet):
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create issue reports.")
+        serializer.save(reporter=user)
+
+class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
+    owner_field = 'user'
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -462,38 +505,32 @@ class TransactionViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
         return super().get_permissions()
 
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            if user.user_type.user_type_name == 'admin':
-                return Transaction.objects.all()
-            # For detail actions, return all objects and let object-level permissions handle filtering
-            if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-                return Transaction.objects.all()
-            # For list actions, return only transactions belonging to the authenticated user
-            return Transaction.objects.filter(user=user)
-        return Transaction.objects.none() # Unauthenticated users cannot see any transactions
-
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
-class ConversationViewSet(viewsets.ModelViewSet):
+class ConversationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsConversationParticipantOrAdmin)]
 
-    def get_queryset(self):
-        if self.request.user.is_authenticated and self.request.user.user_type.user_type_name == 'admin':
-            return Conversation.objects.all()
-        elif self.request.user.is_authenticated:
-            # For detail actions, return all objects and let object-level permissions handle filtering
-            if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-                return Conversation.objects.all()
-            # For list actions, return only conversations the user is a participant of
-            return Conversation.objects.filter(participants=self.request.user)
-        return super().get_queryset()
+    def get_filtered_queryset(self, user, base_queryset):
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            return base_queryset # Rely on object-level permissions
+        return base_queryset.filter(participants=user)
 
-class MessageViewSet(viewsets.ModelViewSet):
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create conversations.")
+        
+        participants_data = self.request.data.get('participants')
+        if user.user_type.user_type_name != 'admin':
+            if not participants_data or user.user_id not in participants_data:
+                raise serializers.ValidationError({"participants": "The authenticated user must be a participant in the conversation."})
+        
+        serializer.save()
+
+class MessageViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
 
@@ -504,13 +541,26 @@ class MessageViewSet(viewsets.ModelViewSet):
             self.permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsConversationParticipantOrAdmin)]
         return super().get_permissions()
 
-    def get_queryset(self):
-        if self.request.user.is_authenticated and self.request.user.user_type.user_type_name == 'admin':
-            return Message.objects.all()
-        elif self.request.user.is_authenticated:
-            # For detail actions, return all objects and let object-level permissions handle filtering
-            if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-                return Message.objects.all()
-            # For list actions, return only messages from conversations the user is a participant of
-            return Message.objects.filter(conversation__participants=self.request.user)
-        return super().get_queryset()
+    def get_filtered_queryset(self, user, base_queryset):
+        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
+            return base_queryset # Rely on object-level permissions
+        return base_queryset.filter(conversation__participants=user)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if not user.is_authenticated:
+            raise PermissionDenied("Authentication required to create messages.")
+        
+        conversation_id = self.request.data.get('conversation')
+        if not conversation_id:
+            raise serializers.ValidationError({"conversation": "This field is required."})
+        
+        try:
+            conversation = Conversation.objects.get(id=conversation_id)
+        except Conversation.DoesNotExist:
+            raise serializers.ValidationError({"conversation": "Conversation does not exist."})
+        
+        if user.user_type.user_type_name != 'admin' and user not in conversation.participants.all():
+            raise PermissionDenied("You are not a participant in this conversation.")
+        
+        serializer.save(sender=user, conversation=conversation)

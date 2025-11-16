@@ -113,10 +113,12 @@ class IsUserOwnerOrAdmin(permissions.BasePermission):
         if request.user and request.user.is_authenticated and request.user.user_type.user_type_name == 'admin':
             return True
         if hasattr(obj, 'user'):
-            return obj.user == request.user
+            if obj.user == request.user:
+                return True
         elif hasattr(obj, 'reporter'):
-            return obj.reporter == request.user
-        return False
+            if obj.reporter == request.user:
+                return True
+        raise PermissionDenied("You do not have permission to access this object.")
 
 class IsMessageSenderOrAdmin(permissions.BasePermission):
     """

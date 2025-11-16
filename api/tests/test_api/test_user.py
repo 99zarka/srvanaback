@@ -16,13 +16,13 @@ class UserAPITests(TestCase):
             username='clientuser',
             email='client@example.com',
             password='password123',
-            user_type=self.client_usertype
+            user_type_name=self.client_usertype.user_type_name
         )
         self.other_client_user = User.objects.create_user(
             username='otherclient',
             email='other@example.com',
             password='password123',
-            user_type=self.client_usertype
+            user_type_name=self.client_usertype.user_type_name
         )
         self.admin_user = User.objects.create(
             email="admin@example.com",

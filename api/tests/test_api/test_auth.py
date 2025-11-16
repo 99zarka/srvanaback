@@ -29,7 +29,7 @@ class AuthAPITests(TestCase):
             "last_name": "User",
             "phone_number": "1234567890",
             "address": "123 Test St",
-            "user_type": self.client_usertype.user_type_id,
+            "user_type_name": self.client_usertype.user_type_name,
         }
 
         self.admin_user = User.objects.create(

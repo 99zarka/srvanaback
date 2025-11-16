@@ -16,27 +16,25 @@ class TechnicianSkillTests(APITestCase):
             username='clientuser',
             email='client@example.com',
             password='password123',
-            user_type=self.client_usertype
+            user_type_name=self.client_usertype.user_type_name
         )
         self.technician_user = User.objects.create_user(
             username='techuser',
             email='technician@example.com',
             password='password123',
-            user_type=self.technician_usertype
+            user_type_name=self.technician_usertype.user_type_name
         )
         self.other_technician_user = User.objects.create_user(
             username='othertech',
             email='othertechnician@example.com',
             password='password123',
-            user_type=self.technician_usertype
+            user_type_name=self.technician_usertype.user_type_name
         )
-        self.admin_user = User.objects.create(
+        self.admin_user = User.objects.create_superuser(
             email="admin@example.com",
             username="adminuser",
-            password=make_password("adminpassword123"),
-            user_type=self.admin_usertype,
-            is_staff=True,
-            is_superuser=True
+            password="adminpassword123",
+            user_type_name=self.admin_usertype.user_type_name,
         )
 
         self.service_category = ServiceCategory.objects.create(category_name='Electronics Repair')

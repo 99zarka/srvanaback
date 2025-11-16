@@ -20,7 +20,14 @@ class CustomUserManager(BaseUserManager):
         # Convert empty username to None to avoid unique constraint violation for empty strings
         if 'username' in extra_fields and extra_fields['username'] == '':
             extra_fields['username'] = None
-        user = self.model(email=email, **extra_fields)
+
+        user_type_name = extra_fields.pop('user_type_name', 'client')
+        try:
+            user_type_obj = UserType.objects.get(user_type_name=user_type_name)
+        except UserType.DoesNotExist:
+            user_type_obj = UserType.objects.create(user_type_name=user_type_name)
+
+        user = self.model(email=email, user_type=user_type_obj, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
@@ -38,7 +45,7 @@ class CustomUserManager(BaseUserManager):
 
 class User(AbstractBaseUser, PermissionsMixin):
     user_id = models.AutoField(primary_key=True)
-    user_type = models.ForeignKey(UserType, on_delete=models.CASCADE, null=False, blank=False, default=1)
+    user_type = models.ForeignKey(UserType, on_delete=models.CASCADE, null=False, blank=False)
     first_name = models.CharField(max_length=255, null=False, blank=False)
     last_name = models.CharField(max_length=255, null=False, blank=False)
     email = models.CharField(max_length=255, unique=True, null=False, blank=False)

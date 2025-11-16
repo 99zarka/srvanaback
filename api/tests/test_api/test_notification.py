@@ -13,19 +13,19 @@ class NotificationTests(APITestCase):
             username='clientuser',
             email='client@example.com',
             password='password123',
-            user_type=self.usertype_client
+            user_type_name=self.usertype_client.user_type_name
         )
         self.other_client_user = User.objects.create_user(
             username='otherclient',
             email='other@example.com',
             password='password123',
-            user_type=self.usertype_client
+            user_type_name=self.usertype_client.user_type_name
         )
         self.admin_user = User.objects.create_user(
             username='adminuser',
             email='admin@example.com',
             password='password123',
-            user_type=self.usertype_admin
+            user_type_name=self.usertype_admin.user_type_name
         )
 
         self.notification_data = {
