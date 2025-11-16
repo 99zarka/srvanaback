@@ -5,7 +5,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
-from api.models import User
+from users.models import User
 from django.contrib.auth import authenticate
 
 class GoogleLoginView(APIView):

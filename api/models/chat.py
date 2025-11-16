@@ -1,5 +1,5 @@
 from django.db import models
-from .users import User
+from users.models import User
 
 class Conversation(models.Model):
     participants = models.ManyToManyField(User, related_name='conversations')

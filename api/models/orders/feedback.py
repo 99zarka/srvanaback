@@ -1,5 +1,5 @@
 from django.db import models
-from ..users import User
+from users.models import User
 from .core import Order # Import Order from core.py
 from datetime import date
 

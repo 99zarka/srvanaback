@@ -1,5 +1,5 @@
 from django.db import models
-from .users import User
+from users.models import User
 from .orders.core import Order
 
 class Transaction(models.Model):

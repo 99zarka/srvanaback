@@ -1,5 +1,5 @@
 from django.db import models
-from .users import User # Import User for ForeignKey in other models
+from users.models import User # Import User for ForeignKey in other models
 
 class ServiceCategory(models.Model):
     category_id = models.AutoField(primary_key=True)

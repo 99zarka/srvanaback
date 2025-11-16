@@ -1,6 +1,6 @@
 from rest_framework import permissions
 from rest_framework.exceptions import PermissionDenied
-from .models.users import User
+from users.models import User
 
 class IsClientUser(permissions.BasePermission):
     """

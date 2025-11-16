@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from ..models.reviews import Review
-from ..models.users import User
+from users.models import User
 from ..models.orders.core import Order
 
 class ReviewSerializer(serializers.ModelSerializer):

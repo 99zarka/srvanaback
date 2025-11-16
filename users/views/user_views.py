@@ -1,8 +1,8 @@
 from rest_framework import viewsets, permissions
-from ..models.users import User, UserType
-from ..serializers import UserTypeSerializer, UserSerializer
-from ..permissions import IsAdminUser, IsOwnerOrAdmin
-from ..mixins import OwnerFilteredQuerysetMixin
+from users.models import User, UserType
+from users.serializers import UserTypeSerializer, UserSerializer
+from api.permissions import IsAdminUser, IsOwnerOrAdmin
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class UserTypeViewSet(viewsets.ModelViewSet):
     queryset = UserType.objects.all()

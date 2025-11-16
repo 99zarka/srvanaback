@@ -1,5 +1,3 @@
-from .auth_views import RegisterView
-from .user_views import UserTypeViewSet, UserViewSet
 from .service_views import ServiceCategoryViewSet, ServiceViewSet
 from .technician_views import TechnicianAvailabilityViewSet, TechnicianSkillViewSet, VerificationDocumentViewSet
 from .order_views import OrderViewSet, ProjectOfferViewset

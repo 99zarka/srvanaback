@@ -1,5 +1,5 @@
 from django.db import models
-from .users import User
+from users.models import User
 
 class NotificationPreference(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_preferences')

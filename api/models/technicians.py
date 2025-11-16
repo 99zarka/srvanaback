@@ -1,5 +1,5 @@
 from django.db import models
-from .users import User
+from users.models import User
 from .services import Service
 
 class TechnicianAvailability(models.Model):

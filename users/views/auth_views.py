@@ -2,8 +2,8 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework import permissions
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from ..models.users import User
-from ..serializers import UserRegistrationSerializer, UserSerializer
+from users.models import User
+from users.serializers import UserRegistrationSerializer, UserSerializer
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
