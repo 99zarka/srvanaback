@@ -1,4 +1,3 @@
-from .services import ServiceCategory, Service
 from .orders.core import Order
 from .orders.attachments import Media
 from .orders.feedback import Complaint, ProjectOffer

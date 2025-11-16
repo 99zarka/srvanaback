@@ -1,7 +1,5 @@
 from .test_auth import *
 from .test_order import *
-from .test_service_category import *
-from .test_service import *
 from .test_technician_availability import *
 from .test_technician_skill import *
 from .test_verification_document import *

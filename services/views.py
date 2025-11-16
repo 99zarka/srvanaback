@@ -1,7 +1,7 @@
 from rest_framework import viewsets
-from ..models.services import ServiceCategory, Service
-from ..serializers import ServiceCategorySerializer, ServiceSerializer
-from ..permissions import IsAdminUser, IsAuthenticatedOrReadOnly
+from services.models import ServiceCategory, Service
+from services.serializers import ServiceCategorySerializer, ServiceSerializer
+from api.permissions import IsAdminUser, IsAuthenticatedOrReadOnly
 
 class ServiceCategoryViewSet(viewsets.ModelViewSet):
     queryset = ServiceCategory.objects.all()

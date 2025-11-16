@@ -3,15 +3,13 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from datetime import date, datetime
 from django.utils import timezone
-from api.models import (
-    UserType, User, ServiceCategory, Service, Order,
-    TechnicianSkill, TechnicianAvailability, VerificationDocument
-)
+from users.models import UserType, User
+from services.models import ServiceCategory, Service
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.urls import reverse
 
-class ServiceAPITests(TestCase):
+class ServiceCategoryAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
@@ -44,41 +42,23 @@ class ServiceAPITests(TestCase):
             user_type_name=self.admin_usertype.user_type_name,
         )
 
-        self.category = ServiceCategory.objects.create(category_name="TestCategoryForService", description="Temp category")
-        self.service = Service.objects.create(
-            category=self.category, service_name="TestService", description="Service for TestService",
-            service_type="Repair", base_inspection_fee=50.00, estimated_price_range_min=100.00,
-            estimated_price_range_max=500.00, emergency_surcharge_percentage=10.00
-        )
-        self.other_service = Service.objects.create(
-            category=self.category, service_name="OtherService", description="Other Service",
-            service_type="Installation", base_inspection_fee=30.00, estimated_price_range_min=50.00,
-            estimated_price_range_max=200.00, emergency_surcharge_percentage=5.00
-        )
+        self.category = ServiceCategory.objects.create(category_name="TestCategory", description="Description for TestCategory", icon_url="http://example.com/icon.png")
+        self.other_category = ServiceCategory.objects.create(category_name="OtherCategory", description="Description for OtherCategory", icon_url="http://example.com/other_icon.png")
 
-        self.service_data = {
-            "category": self.category.category_id,
-            "service_name": "NewService",
-            "description": "Description for NewService",
-            "service_type": "Maintenance",
-            "base_inspection_fee": 60.00,
-            "estimated_price_range_min": 120.00,
-            "estimated_price_range_max": 550.00,
-            "emergency_surcharge_percentage": 12.00
+        self.category_data = {
+            "category_name": "NewCategory",
+            "description": "Description for NewCategory",
+            "icon_url": "http://example.com/new_icon.png"
         }
-        self.updated_service_data = {
-            "service_name": "UpdatedTestService",
-            "description": "Updated description for TestService",
-            "service_type": "Maintenance",
-            "base_inspection_fee": 75.00,
-            "estimated_price_range_min": 150.00,
-            "estimated_price_range_max": 600.00,
-            "emergency_surcharge_percentage": 15.00
+        self.updated_category_data = {
+            "category_name": "UpdatedTestCategory",
+            "description": "Updated description for TestCategory",
+            "icon_url": "http://example.com/updated_icon.png"
         }
 
-        self.list_url = reverse('service-list')
-        self.detail_url = reverse('service-detail', args=[self.service.service_id])
-        self.other_detail_url = reverse('service-detail', args=[self.other_service.service_id])
+        self.list_url = reverse('servicecategory-list')
+        self.detail_url = reverse('servicecategory-detail', args=[self.category.category_id])
+        self.other_detail_url = reverse('servicecategory-detail', args=[self.other_category.category_id])
 
     def get_auth_client(self, user):
         token = str(RefreshToken.for_user(user).access_token)
@@ -86,119 +66,119 @@ class ServiceAPITests(TestCase):
         return self.client
 
     # --- Unauthenticated User Tests ---
-    def test_unauthenticated_create_service(self):
+    def test_unauthenticated_create_servicecategory(self):
         self.client.force_authenticate(user=None)
-        response = self.client.post(self.list_url, self.service_data, format='json')
+        response = self.client.post(self.list_url, self.category_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_unauthenticated_list_services(self):
+    def test_unauthenticated_list_servicecategories(self):
         self.client.force_authenticate(user=None)
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK) # Publicly accessible
         self.assertEqual(len(response.data), 2)
 
-    def test_unauthenticated_retrieve_service(self):
+    def test_unauthenticated_retrieve_servicecategory(self):
         self.client.force_authenticate(user=None)
         response = self.client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK) # Publicly accessible
-        self.assertEqual(response.data['service_name'], 'TestService')
+        self.assertEqual(response.data['category_name'], 'TestCategory')
 
-    def test_unauthenticated_update_service(self):
-        updated_data = {'service_name': 'Unauthorized Update'}
+    def test_unauthenticated_update_servicecategory(self):
+        updated_data = {'category_name': 'Unauthorized Update'}
         response = self.client.patch(self.detail_url, updated_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_unauthenticated_delete_service(self):
+    def test_unauthenticated_delete_servicecategory(self):
         response = self.client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     # --- Client User Tests ---
-    def test_client_create_service_forbidden(self):
+    def test_client_create_servicecategory_forbidden(self):
         client = self.get_auth_client(self.client_user)
-        response = client.post(self.list_url, self.service_data, format='json')
+        response = client.post(self.list_url, self.category_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_client_list_services(self):
+    def test_client_list_servicecategories(self):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
 
-    def test_client_retrieve_service(self):
+    def test_client_retrieve_servicecategory(self):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['service_name'], 'TestService')
+        self.assertEqual(response.data['category_name'], 'TestCategory')
 
-    def test_client_update_service_forbidden(self):
+    def test_client_update_servicecategory_forbidden(self):
         client = self.get_auth_client(self.client_user)
-        updated_data = {'service_name': 'Client Update'}
+        updated_data = {'category_name': 'Client Update'}
         response = client.patch(self.detail_url, updated_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_client_delete_service_forbidden(self):
+    def test_client_delete_servicecategory_forbidden(self):
         client = self.get_auth_client(self.client_user)
         response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     # --- Technician User Tests ---
-    def test_technician_create_service_forbidden(self):
+    def test_technician_create_servicecategory_forbidden(self):
         client = self.get_auth_client(self.technician_user)
-        response = client.post(self.list_url, self.service_data, format='json')
+        response = client.post(self.list_url, self.category_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_technician_list_services(self):
+    def test_technician_list_servicecategories(self):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
 
-    def test_technician_retrieve_service(self):
+    def test_technician_retrieve_servicecategory(self):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['service_name'], 'TestService')
+        self.assertEqual(response.data['category_name'], 'TestCategory')
 
-    def test_technician_update_service_forbidden(self):
+    def test_technician_update_servicecategory_forbidden(self):
         client = self.get_auth_client(self.technician_user)
-        updated_data = {'service_name': 'Technician Update'}
+        updated_data = {'category_name': 'Technician Update'}
         response = client.patch(self.detail_url, updated_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_technician_delete_service_forbidden(self):
+    def test_technician_delete_servicecategory_forbidden(self):
         client = self.get_auth_client(self.technician_user)
         response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     # --- Admin User Tests ---
-    def test_admin_create_service(self):
+    def test_admin_create_servicecategory(self):
         client = self.get_auth_client(self.admin_user)
-        response = client.post(self.list_url, self.service_data, format='json')
+        response = client.post(self.list_url, self.category_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Service.objects.count(), 3)
-        self.assertEqual(response.data['service_name'], 'NewService')
+        self.assertEqual(ServiceCategory.objects.count(), 3)
+        self.assertEqual(response.data['category_name'], 'NewCategory')
 
-    def test_admin_list_services(self):
+    def test_admin_list_servicecategories(self):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
 
-    def test_admin_retrieve_service(self):
+    def test_admin_retrieve_servicecategory(self):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['service_name'], 'TestService')
+        self.assertEqual(response.data['category_name'], 'TestCategory')
 
-    def test_admin_update_service(self):
+    def test_admin_update_servicecategory(self):
         client = self.get_auth_client(self.admin_user)
-        response = client.patch(self.detail_url, self.updated_service_data, format='json')
+        response = client.patch(self.detail_url, self.updated_category_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.service.refresh_from_db()
-        self.assertEqual(self.service.service_name, 'UpdatedTestService')
+        self.category.refresh_from_db()
+        self.assertEqual(self.category.category_name, 'UpdatedTestCategory')
 
-    def test_admin_delete_service(self):
+    def test_admin_delete_servicecategory(self):
         client = self.get_auth_client(self.admin_user)
         response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
-        self.assertEqual(Service.objects.count(), 1) # One deleted
+        self.assertEqual(ServiceCategory.objects.count(), 1) # One deleted

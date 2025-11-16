@@ -1,6 +1,5 @@
 # This makes the 'serializers' directory a Python package.
 
-from .service_serializers import ServiceCategorySerializer, ServiceSerializer
 from .technician_serializers import TechnicianAvailabilitySerializer, TechnicianSkillSerializer, VerificationDocumentSerializer
 from .order_serializers import OrderSerializer, ProjectOfferSerializer
 from .address_serializers import AddressSerializer

@@ -1,6 +1,6 @@
 from django.db import models
 from users.models import User
-from ..services import Service
+from services.models import Service
 from datetime import date
 
 class Order(models.Model):

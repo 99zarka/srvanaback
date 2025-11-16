@@ -1,6 +1,6 @@
 from django.db import models
 from users.models import User
-from .services import Service
+from services.models import Service
 
 class TechnicianAvailability(models.Model):
     availability_id = models.AutoField(primary_key=True)

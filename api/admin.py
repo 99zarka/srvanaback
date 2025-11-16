@@ -1,13 +1,10 @@
 from django.contrib import admin
 from .models import (
-    ServiceCategory, Service, Order, Payment, Review,
+    Order, Payment, Review,
     TechnicianAvailability, TechnicianSkill, ProjectOffer, Complaint, Media,
     VerificationDocument, Address, Conversation, Message, IssueReport,
     NotificationPreference, Notification, PaymentMethod, Transaction
 )
-
-admin.site.register(ServiceCategory)
-admin.site.register(Service)
 admin.site.register(Order)
 admin.site.register(Payment)
 admin.site.register(Review)
