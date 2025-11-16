@@ -1,38 +1,30 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import (
-    UserTypeViewSet, UserViewSet, RegisterView,
-    ServiceCategoryViewSet, ServiceViewSet,
-    TechnicianAvailabilityViewSet, TechnicianSkillViewSet,
-    VerificationDocumentViewSet, OrderViewSet, ProjectOfferViewset,
-    AddressViewSet, PaymentMethodViewSet, NotificationPreferenceViewSet,
-    NotificationViewSet, ReviewViewSet, IssueReportViewSet,
-    TransactionViewSet, ConversationViewSet, MessageViewSet
-)
+from . import views
 from .google_login import GoogleLoginView
 
 router = DefaultRouter()
-router.register(r'usertypes', UserTypeViewSet)
-router.register(r'users', UserViewSet)
-router.register(r'servicecategories', ServiceCategoryViewSet)
-router.register(r'services', ServiceViewSet)
-router.register(r'technicianavailabilities', TechnicianAvailabilityViewSet)
-router.register(r'technicianskills', TechnicianSkillViewSet)
-router.register(r'verificationdocuments', VerificationDocumentViewSet)
-router.register(r'orders', OrderViewSet)
-router.register(r'projectoffers', ProjectOfferViewset)
-router.register(r'addresses', AddressViewSet)
-router.register(r'paymentmethods', PaymentMethodViewSet)
-router.register(r'notificationpreferences', NotificationPreferenceViewSet)
-router.register(r'notifications', NotificationViewSet)
-router.register(r'reviews', ReviewViewSet)
-router.register(r'issuereports', IssueReportViewSet)
-router.register(r'transactions', TransactionViewSet)
-router.register(r'conversations', ConversationViewSet)
-router.register(r'messages', MessageViewSet)
+router.register(r'usertypes', views.UserTypeViewSet)
+router.register(r'users', views.UserViewSet)
+router.register(r'servicecategories', views.ServiceCategoryViewSet)
+router.register(r'services', views.ServiceViewSet)
+router.register(r'technicianavailabilities', views.TechnicianAvailabilityViewSet)
+router.register(r'technicianskills', views.TechnicianSkillViewSet)
+router.register(r'verificationdocuments', views.VerificationDocumentViewSet)
+router.register(r'orders', views.OrderViewSet)
+router.register(r'projectoffers', views.ProjectOfferViewset)
+router.register(r'addresses', views.AddressViewSet)
+router.register(r'paymentmethods', views.PaymentMethodViewSet)
+router.register(r'notificationpreferences', views.NotificationPreferenceViewSet)
+router.register(r'notifications', views.NotificationViewSet)
+router.register(r'reviews', views.ReviewViewSet)
+router.register(r'issuereports', views.IssueReportViewSet)
+router.register(r'transactions', views.TransactionViewSet)
+router.register(r'conversations', views.ConversationViewSet)
+router.register(r'messages', views.MessageViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    path('register/', RegisterView.as_view(), name='register'),
+    path('register/', views.RegisterView.as_view(), name='register'),
     path('google-login/', GoogleLoginView.as_view(), name='google_login'),
 ]
