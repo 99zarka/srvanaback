@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -157,28 +158,35 @@ WSGI_APPLICATION = 'srvana.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Local SQLite database (commented out for production)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
+# Cloud PostgreSQL database configuration
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'defaultdb',
+        'USER': 'avnadmin',
+        'PASSWORD': 'AVNS_5Z_eP5ZxbwMflRkUbSn',
+        'HOST': 'srvana-mohamedmanchestrawy-test.f.aivencloud.com',
+        'PORT': '15292',
+        'OPTIONS': {
+            'sslmode': 'require',
+        },
+        'CONN_MAX_AGE': 600,
     }
 }
 
-# Original PostgreSQL database configuration (commented out)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'defaultdb',
-#         'USER': 'avnadmin',
-#         'PASSWORD': 'AVNS_5Z_eP5ZxbwMflRkUbSn',
-#         'HOST': 'srvana-mohamedmanchestrawy-test.f.aivencloud.com',
-#         'PORT': '15292',
-#         'OPTIONS': {
-#             'sslmode': 'require',
-#         },
-#         'CONN_MAX_AGE': 600,
+# if 'test' in sys.argv:
+#     DATABASES['default'] = {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'test_db.sqlite3',
 #     }
-# }
 
 
 # Password validation
