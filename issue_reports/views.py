@@ -1,9 +1,9 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
-from ..models.issue_reports import IssueReport
-from ..serializers import IssueReportSerializer
-from ..permissions import IsAdminUser, IsUserOwnerOrAdmin
-from ..mixins import OwnerFilteredQuerysetMixin
+from .models import IssueReport
+from .serializers import IssueReportSerializer
+from api.permissions import IsAdminUser, IsUserOwnerOrAdmin
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class IssueReportViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = IssueReport.objects.all()
