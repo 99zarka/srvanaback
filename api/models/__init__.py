@@ -6,4 +6,3 @@ from .notifications import NotificationPreference, Notification
 from .reviews import Review
 from .issue_reports import IssueReport
 from .transactions import Transaction
-from .chat import Conversation, Message

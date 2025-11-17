@@ -1,10 +1,10 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
-from ..models.chat import Conversation, Message
-from ..serializers import ConversationSerializer, MessageSerializer
-from ..permissions import IsAdminUser, IsConversationParticipantOrAdmin, IsMessageSenderOrAdmin
-from ..mixins import OwnerFilteredQuerysetMixin
+from .models import Conversation, Message
+from .serializers import ConversationSerializer, MessageSerializer
+from api.permissions import IsAdminUser, IsConversationParticipantOrAdmin, IsMessageSenderOrAdmin
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class ConversationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Conversation.objects.all()

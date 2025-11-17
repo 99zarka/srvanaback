@@ -4,8 +4,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.urls import reverse
-from api.models import Message, Conversation, User
-from api.models.users import UserType
+from ..models import Message, Conversation
+from users.models import User, UserType
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 

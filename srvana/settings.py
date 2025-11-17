@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'users',
     'services',
     'orders',
+    'chat',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
@@ -151,18 +152,26 @@ WSGI_APPLICATION = 'srvana.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'defaultdb',
-        'USER': 'avnadmin',
-        'PASSWORD': 'AVNS_5Z_eP5ZxbwMflRkUbSn',
-        'HOST': 'srvana-mohamedmanchestrawy-test.f.aivencloud.com',
-        'PORT': '15292',
-        'OPTIONS': {
-            'sslmode': 'require',
-        },
-        'CONN_MAX_AGE': 600,
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Original PostgreSQL database configuration (commented out)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'defaultdb',
+#         'USER': 'avnadmin',
+#         'PASSWORD': 'AVNS_5Z_eP5ZxbwMflRkUbSn',
+#         'HOST': 'srvana-mohamedmanchestrawy-test.f.aivencloud.com',
+#         'PORT': '15292',
+#         'OPTIONS': {
+#             'sslmode': 'require',
+#         },
+#         'CONN_MAX_AGE': 600,
+#     }
+# }
 
 
 # Password validation

@@ -13,8 +13,6 @@ router.register(r'notifications', views.NotificationViewSet)
 router.register(r'reviews', views.ReviewViewSet)
 router.register(r'issuereports', views.IssueReportViewSet)
 router.register(r'transactions', views.TransactionViewSet)
-router.register(r'conversations', views.ConversationViewSet)
-router.register(r'messages', views.MessageViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -7,4 +7,3 @@ from .notification_serializers import NotificationPreferenceSerializer, Notifica
 from .review_serializers import ReviewSerializer
 from .issue_report_serializers import IssueReportSerializer
 from .transaction_serializers import TransactionSerializer
-from .chat_serializers import ConversationSerializer, MessageSerializer
