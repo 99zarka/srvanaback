@@ -55,6 +55,7 @@ INSTALLED_APPS = [
      'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
+    'drf_yasg', # Added for API documentation
 ]
 
 REST_FRAMEWORK = {
