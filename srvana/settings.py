@@ -48,9 +48,10 @@ INSTALLED_APPS = [
     'addresses',
     'payments',
     'notifications',
-    'reviews',
-    'issue_reports',
-    'rest_framework',
+     'reviews',
+     'issue_reports',
+     'transactions',
+     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
 ]

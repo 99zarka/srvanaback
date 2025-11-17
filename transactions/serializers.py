@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models.transactions import Transaction
+from .models import Transaction
 from orders.models import Order # Import Order for PrimaryKeyRelatedField queryset
 
 class TransactionSerializer(serializers.ModelSerializer):

@@ -1,8 +1,8 @@
 from rest_framework import viewsets, permissions
-from ..models.transactions import Transaction
-from ..serializers import TransactionSerializer
-from ..permissions import IsAdminUser, IsUserOwnerOrAdmin
-from ..mixins import OwnerFilteredQuerysetMixin
+from .models import Transaction
+from .serializers import TransactionSerializer
+from api.permissions import IsAdminUser, IsUserOwnerOrAdmin
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Transaction.objects.all()
