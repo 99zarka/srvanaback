@@ -5,7 +5,7 @@ class ServiceCategory(models.Model):
     category_id = models.AutoField(primary_key=True)
     category_name = models.CharField(max_length=255, null=False, blank=False)
     description = models.TextField(null=True, blank=True)
-    icon_url = models.CharField(max_length=255, null=True, blank=True)
+    icon_url = models.ImageField(upload_to='service_category_icons/', null=True, blank=True)
 
     class Meta:
         db_table = 'SERVICE_CATEGORY'

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from users.models import User, UserType
+from filesupload.serializers.fields import CloudinaryImageField
 
 class UserTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -7,6 +8,8 @@ class UserTypeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class UserSerializer(serializers.ModelSerializer):
+    profile_photo = CloudinaryImageField(required=False, allow_null=True)
+
     class Meta:
         model = User
         fields = '__all__'

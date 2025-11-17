@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import sys
+import os
+import cloudinary
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -56,7 +58,15 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
     'drf_yasg', # Added for API documentation
+    'filesupload', # New app for file uploads
 ]
+
+# Cloudinary Configuration
+cloudinary.config(
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME', 'dpcqmcm0x'),
+    api_key=os.environ.get('CLOUDINARY_API_KEY', '191518645279549'),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET', '6jEyD8-FFh0cLiWjJOV059R9Xl4')
+)
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
