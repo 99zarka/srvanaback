@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from ..models.transactions import Transaction
-from ..models.orders.core import Order # Import Order for PrimaryKeyRelatedField queryset
+from orders.models import Order # Import Order for PrimaryKeyRelatedField queryset
 
 class TransactionSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True, default=serializers.CurrentUserDefault())

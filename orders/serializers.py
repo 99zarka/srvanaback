@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from ..models.orders.core import Order
-from ..models.orders.feedback import ProjectOffer
+from .models import Order, ProjectOffer
 
 class OrderSerializer(serializers.ModelSerializer):
     class Meta:

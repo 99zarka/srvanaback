@@ -1,6 +1,6 @@
 from django.db import models
 from users.models import User
-from .orders.core import Order
+from orders.models import Order
 
 class Transaction(models.Model):
     TRANSACTION_TYPE_CHOICES = [

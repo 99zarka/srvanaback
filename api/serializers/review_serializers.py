@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from ..models.reviews import Review
 from users.models import User
-from ..models.orders.core import Order
+from orders.models import Order
 
 class ReviewSerializer(serializers.ModelSerializer):
     reviewer = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())

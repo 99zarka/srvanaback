@@ -1,18 +1,12 @@
 from django.contrib import admin
 from .models import (
-    Order, Payment, Review,
-    TechnicianAvailability, TechnicianSkill, ProjectOffer, Complaint, Media,
+    Review, TechnicianAvailability, TechnicianSkill,
     VerificationDocument, Address, Conversation, Message, IssueReport,
     NotificationPreference, Notification, PaymentMethod, Transaction
 )
-admin.site.register(Order)
-admin.site.register(Payment)
 admin.site.register(Review)
 admin.site.register(TechnicianAvailability)
 admin.site.register(TechnicianSkill)
-admin.site.register(ProjectOffer)
-admin.site.register(Complaint)
-admin.site.register(Media)
 admin.site.register(VerificationDocument)
 admin.site.register(Address)
 admin.site.register(Conversation)
