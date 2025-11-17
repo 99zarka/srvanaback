@@ -111,9 +111,9 @@ class OrderAPITests(TestCase):
             "order_status": "completed",
         }
 
-        self.list_url = '/api/orders/'
-        self.detail_url = f'/api/orders/{self.order.order_id}/'
-        self.other_detail_url = f'/api/orders/{self.other_order.order_id}/'
+        self.list_url = '/api/orders/orders/'
+        self.detail_url = f'/api/orders/orders/{self.order.order_id}/'
+        self.other_detail_url = f'/api/orders/orders/{self.other_order.order_id}/'
 
     def get_auth_client(self, user):
         token = str(RefreshToken.for_user(user).access_token)

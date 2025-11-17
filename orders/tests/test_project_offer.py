@@ -4,8 +4,9 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.urls import reverse
-from api.models import ProjectOffer, User, Order, Service, ServiceCategory
-from api.models.users import UserType
+from orders.models import ProjectOffer, Order
+from users.models import User, UserType
+from services.models import Service, ServiceCategory
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.db import transaction
@@ -110,9 +111,9 @@ class ProjectOfferTests(APITestCase):
             offer_date='2025-01-02'
         )
 
-        self.list_url = reverse('projectoffer-list')
-        self.detail_url_tech_user = reverse('projectoffer-detail', args=[self.project_offer_tech_user.offer_id])
-        self.detail_url_other_tech_user = reverse('projectoffer-detail', args=[self.project_offer_other_tech_user.offer_id])
+        self.list_url = '/api/orders/projectoffers/'
+        self.detail_url_tech_user = f'/api/orders/projectoffers/{self.project_offer_tech_user.offer_id}/'
+        self.detail_url_other_tech_user = f'/api/orders/projectoffers/{self.project_offer_other_tech_user.offer_id}/'
 
     def get_auth_client(self, user):
         token = str(RefreshToken.for_user(user).access_token)

@@ -29,10 +29,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Order.objects.filter(technician_user=user)
         return Order.objects.all() # Return all for unauthenticated, let permissions handle 401/403
 
-class ProjectOfferViewset(viewsets.ModelViewSet):
+class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = ProjectOffer.objects.all()
     serializer_class = ProjectOfferSerializer
     lookup_field = 'offer_id'
+    owner_field = 'technician_user'
 
     def get_permissions(self):
         if self.action == 'create':
@@ -41,17 +42,18 @@ class ProjectOfferViewset(viewsets.ModelViewSet):
             self.permission_classes = [IsAdminUser | (IsTechnicianUser & IsTechnicianOwnerOrAdmin)]
         else: # list, retrieve
             self.permission_classes = [IsAdminUser | (IsTechnicianUser & IsTechnicianOwnerOrAdmin) | (IsClientUser & IsClientOwnerOrAdmin)]
-        return [permission() for permission in self.permission_classes]
+        return super().get_permissions()
 
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated and user.user_type.user_type_name == 'admin':
-            return ProjectOffer.objects.all()
-        elif user.is_authenticated and user.user_type.user_type_name == 'technician':
-            return ProjectOffer.objects.filter(technician_user=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'client':
-            return ProjectOffer.objects.filter(order__client_user=user)
-        return ProjectOffer.objects.all() # Return all for unauthenticated, let permissions handle 401/403
+    def get_filtered_queryset(self, user, base_queryset):
+        if user.user_type.user_type_name == 'technician':
+            if self.action == 'list':
+                return base_queryset.filter(technician_user=user)
+            return base_queryset # For detail actions, rely on object-level permissions
+        elif user.user_type.user_type_name == 'client':
+            if self.action == 'list':
+                return base_queryset.filter(order__client_user=user)
+            return base_queryset # For detail actions, rely on object-level permissions
+        return base_queryset.none()
 
     def perform_create(self, serializer):
         user = self.request.user
