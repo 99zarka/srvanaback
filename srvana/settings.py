@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'api',
     'users',
     'services',
+    'orders',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
