@@ -6,9 +6,7 @@ from django.utils import timezone
 from users.models import UserType, User
 from services.models import ServiceCategory, Service
 from orders.models import Order
-from api.models import (
-    TechnicianSkill, TechnicianAvailability, VerificationDocument
-)
+
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 

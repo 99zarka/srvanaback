@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from api.models.users import UserType
+from users.models import UserType
 
 class Command(BaseCommand):
     help = 'Populates the UserType model with client, technician, and admin if they do not exist.'

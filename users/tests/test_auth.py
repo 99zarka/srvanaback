@@ -3,10 +3,10 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from datetime import date, datetime
 from django.utils import timezone
-from api.models import (
-    UserType, User, ServiceCategory, Service, Order,
-    TechnicianSkill, TechnicianAvailability, VerificationDocument
-)
+from users.models import UserType, User
+from services.models import ServiceCategory, Service
+from orders.models import Order
+from technicians.models import TechnicianSkill, TechnicianAvailability, VerificationDocument
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -17,7 +17,7 @@ class AuthAPITests(TestCase):
         self.technician_usertype, created = UserType.objects.get_or_create(user_type_id=2, user_type_name="technician")
         self.admin_usertype, created = UserType.objects.get_or_create(user_type_id=3, user_type_name="admin")
 
-        self.register_url = '/api/register/'
+        self.register_url = '/api/users/register/'
         self.login_url = '/api/login/'
 
         self.user_data = {
