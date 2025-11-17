@@ -1,0 +1,1 @@
+from .test_payment_method import PaymentMethodTests

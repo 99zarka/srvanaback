@@ -1,10 +1,10 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
-from ..models.payment_methods import PaymentMethod
-from ..serializers import PaymentMethodSerializer
-from ..permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsUserOwnerOrAdmin
-from ..mixins import OwnerFilteredQuerysetMixin
+from .models import PaymentMethod
+from .serializers import PaymentMethodSerializer
+from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsUserOwnerOrAdmin
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class PaymentMethodViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = PaymentMethod.objects.all()
