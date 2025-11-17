@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models.reviews import Review
+from .models import Review
 from users.models import User
 from orders.models import Order
 

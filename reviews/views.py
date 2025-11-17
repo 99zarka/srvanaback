@@ -1,9 +1,9 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
-from ..models.reviews import Review
-from ..serializers import ReviewSerializer
-from ..permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsReviewOwnerOrAdmin, IsReviewTechnicianOrAdmin
+from .models import Review
+from .serializers import ReviewSerializer
+from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsReviewOwnerOrAdmin, IsReviewTechnicianOrAdmin
 
 class ReviewViewSet(viewsets.ModelViewSet):
     queryset = Review.objects.all()
