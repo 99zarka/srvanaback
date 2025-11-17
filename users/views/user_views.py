@@ -5,6 +5,36 @@ from api.permissions import IsAdminUser, IsOwnerOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
 
 class UserTypeViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows UserTypes to be viewed or edited.
+
+    list:
+    Return a list of all user types.
+    Usage: GET /api/usertypes/
+
+    retrieve:
+    Return a specific user type by ID.
+    Usage: GET /api/usertypes/{id}/
+
+    create:
+    Create a new user type. (Admin only)
+    Usage: POST /api/usertypes/
+    Body: {"name": "New User Type"}
+
+    update:
+    Update an existing user type. (Admin only)
+    Usage: PUT /api/usertypes/{id}/
+    Body: {"name": "Updated User Type"}
+
+    partial_update:
+    Partially update an existing user type. (Admin only)
+    Usage: PATCH /api/usertypes/{id}/
+    Body: {"name": "Partially Updated User Type"}
+
+    destroy:
+    Delete a user type. (Admin only)
+    Usage: DELETE /api/usertypes/{id}/
+    """
     queryset = UserType.objects.all()
     serializer_class = UserTypeSerializer
 
@@ -16,6 +46,36 @@ class UserTypeViewSet(viewsets.ModelViewSet):
         return super().get_permissions()
 
 class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Users to be viewed or edited.
+
+    list:
+    Return a list of all users. Requires authentication.
+    Usage: GET /api/users/
+
+    retrieve:
+    Return a specific user by ID. Requires authentication and either admin privileges or ownership.
+    Usage: GET /api/users/{id}/
+
+    create:
+    Create a new user. This is typically handled by a separate registration endpoint.
+    Usage: POST /api/users/
+    Body: {"username": "newuser", "email": "new@example.com", "password": "password123"}
+
+    update:
+    Update an existing user. Requires authentication and either admin privileges or ownership.
+    Usage: PUT /api/users/{id}/
+    Body: {"email": "updated@example.com"}
+
+    partial_update:
+    Partially update an existing user. Requires authentication and either admin privileges or ownership.
+    Usage: PATCH /api/users/{id}/
+    Body: {"username": "updatedusername"}
+
+    destroy:
+    Delete a user. Requires authentication and either admin privileges or ownership.
+    Usage: DELETE /api/users/{id}/
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
     owner_field = 'user_id'

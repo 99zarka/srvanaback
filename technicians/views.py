@@ -7,6 +7,42 @@ from api.permissions import IsAdminUser, IsTechnicianUser, IsTechnicianOwnerOrAd
 from api.mixins import OwnerFilteredQuerysetMixin
 
 class TechnicianAvailabilityViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Technician Availability to be viewed or edited.
+
+    list:
+    Return a list of technician availabilities. Technicians see their own, clients see all.
+    Permissions: Authenticated Technician User (owner), Authenticated Client User, or Admin User.
+    Usage: GET /api/technicians/availability/
+
+    retrieve:
+    Return a specific technician availability by ID.
+    Permissions: Authenticated Technician User (owner), Authenticated Client User, or Admin User.
+    Usage: GET /api/technicians/availability/{id}/
+
+    create:
+    Create new technician availability. Technicians can only create for themselves.
+    Permissions: Authenticated Technician User or Admin User.
+    Usage: POST /api/technicians/availability/
+    Body: {"technician_user": 1, "date": "2025-12-01", "start_time": "09:00:00", "end_time": "17:00:00"}
+
+    update:
+    Update existing technician availability. Technicians can only update their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PUT /api/technicians/availability/{id}/
+    Body: {"end_time": "18:00:00"}
+
+    partial_update:
+    Partially update existing technician availability. Technicians can only update their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PATCH /api/technicians/availability/{id}/
+    Body: {"start_time": "10:00:00"}
+
+    destroy:
+    Delete technician availability. Technicians can only delete their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: DELETE /api/technicians/availability/{id}/
+    """
     queryset = TechnicianAvailability.objects.all()
     serializer_class = TechnicianAvailabilitySerializer
 
@@ -39,6 +75,42 @@ class TechnicianAvailabilityViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelVi
         return base_queryset.none()
 
 class TechnicianSkillViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Technician Skills to be viewed or edited.
+
+    list:
+    Return a list of technician skills. Technicians see their own, clients see all.
+    Permissions: Authenticated Technician User (owner), Authenticated Client User, or Admin User.
+    Usage: GET /api/technicians/skills/
+
+    retrieve:
+    Return a specific technician skill by ID.
+    Permissions: Authenticated Technician User (owner), Authenticated Client User, or Admin User.
+    Usage: GET /api/technicians/skills/{id}/
+
+    create:
+    Create a new technician skill. Technicians can only create skills for themselves.
+    Permissions: Authenticated Technician User or Admin User.
+    Usage: POST /api/technicians/skills/
+    Body: {"technician_user": 1, "service": 1, "experience_years": 5}
+
+    update:
+    Update an existing technician skill. Technicians can only update their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PUT /api/technicians/skills/{id}/
+    Body: {"experience_years": 7}
+
+    partial_update:
+    Partially update an existing technician skill. Technicians can only update their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PATCH /api/technicians/skills/{id}/
+    Body: {"experience_years": 6}
+
+    destroy:
+    Delete a technician skill. Technicians can only delete their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: DELETE /api/technicians/skills/{id}/
+    """
     queryset = TechnicianSkill.objects.all()
     serializer_class = TechnicianSkillSerializer
     owner_field = 'technician_user'
@@ -83,6 +155,42 @@ class TechnicianSkillViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             raise PermissionDenied("Only technicians and admins can create skills.")
 
 class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Verification Documents to be viewed or edited.
+
+    list:
+    Return a list of verification documents for the authenticated technician. Admins see all.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: GET /api/technicians/verification_documents/
+
+    retrieve:
+    Return a specific verification document by ID.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: GET /api/technicians/verification_documents/{id}/
+
+    create:
+    Create a new verification document. Technicians can only create for themselves.
+    Permissions: Authenticated Technician User or Admin User.
+    Usage: POST /api/technicians/verification_documents/
+    Body: {"technician_user": 1, "document_type": "ID Card", "document_number": "12345", "status": "Pending"}
+
+    update:
+    Update an existing verification document. Technicians can only update their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PUT /api/technicians/verification_documents/{id}/
+    Body: {"status": "Approved"}
+
+    partial_update:
+    Partially update an existing verification document. Technicians can only update their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PATCH /api/technicians/verification_documents/{id}/
+    Body: {"status": "Rejected"}
+
+    destroy:
+    Delete a verification document. Technicians can only delete their own.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: DELETE /api/technicians/verification_documents/{id}/
+    """
     queryset = VerificationDocument.objects.all()
     serializer_class = VerificationDocumentSerializer
     owner_field = 'technician_user'

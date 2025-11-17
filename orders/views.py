@@ -6,6 +6,42 @@ from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsClien
 from api.mixins import OwnerFilteredQuerysetMixin # This import is no longer needed, but keeping for now to avoid breaking other apps that might use it.
 
 class OrderViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows Orders to be viewed or edited.
+
+    list:
+    Return a list of orders for the authenticated user (client or technician) or all orders for admin.
+    Permissions: Authenticated User (client/technician owner) or Admin User.
+    Usage: GET /api/orders/
+
+    retrieve:
+    Return a specific order by ID.
+    Permissions: Authenticated User (client/technician owner) or Admin User.
+    Usage: GET /api/orders/{order_id}/
+
+    create:
+    Create a new order.
+    Permissions: Authenticated User.
+    Usage: POST /api/orders/
+    Body: {"service": 1, "client_user": 1, "description": "Fix leaky faucet", "scheduled_date": "2025-12-01T10:00:00Z"}
+
+    update:
+    Update an existing order.
+    Permissions: Authenticated User (client/technician owner) or Admin User.
+    Usage: PUT /api/orders/{order_id}/
+    Body: {"status": "Completed"}
+
+    partial_update:
+    Partially update an existing order.
+    Permissions: Authenticated User (client/technician owner) or Admin User.
+    Usage: PATCH /api/orders/{order_id}/
+    Body: {"description": "Fixed and tested."}
+
+    destroy:
+    Delete an order.
+    Permissions: Authenticated User (client/technician owner) or Admin User.
+    Usage: DELETE /api/orders/{order_id}/
+    """
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
@@ -30,6 +66,42 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Order.objects.all() # Return all for unauthenticated, let permissions handle 401/403
 
 class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Project Offers to be viewed or edited.
+
+    list:
+    Return a list of project offers. Technicians see their own offers, clients see offers for their orders, admins see all.
+    Permissions: Authenticated User (technician owner, client owner) or Admin User.
+    Usage: GET /api/orders/project_offers/
+
+    retrieve:
+    Return a specific project offer by ID.
+    Permissions: Authenticated User (technician owner, client owner) or Admin User.
+    Usage: GET /api/orders/project_offers/{offer_id}/
+
+    create:
+    Create a new project offer. Technicians can only create offers for themselves.
+    Permissions: Authenticated Technician User or Admin User.
+    Usage: POST /api/orders/project_offers/
+    Body: {"order": 1, "technician_user": 2, "price": 150.00, "description": "Offer to fix faucet."}
+
+    update:
+    Update an existing project offer. Technicians can only update their own offers.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PUT /api/orders/project_offers/{offer_id}/
+    Body: {"price": 175.00}
+
+    partial_update:
+    Partially update an existing project offer. Technicians can only update their own offers.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: PATCH /api/orders/project_offers/{offer_id}/
+    Body: {"description": "Revised offer details."}
+
+    destroy:
+    Delete a project offer. Technicians can only delete their own offers.
+    Permissions: Authenticated Technician User (owner) or Admin User.
+    Usage: DELETE /api/orders/project_offers/{offer_id}/
+    """
     queryset = ProjectOffer.objects.all()
     serializer_class = ProjectOfferSerializer
     lookup_field = 'offer_id'

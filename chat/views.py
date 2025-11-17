@@ -7,6 +7,42 @@ from api.permissions import IsAdminUser, IsConversationParticipantOrAdmin, IsMes
 from api.mixins import OwnerFilteredQuerysetMixin
 
 class ConversationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Conversations to be viewed or edited.
+
+    list:
+    Return a list of conversations the authenticated user is a participant in.
+    Permissions: Authenticated User (participant) or Admin User.
+    Usage: GET /api/chat/conversations/
+
+    retrieve:
+    Return a specific conversation by ID.
+    Permissions: Authenticated User (participant) or Admin User.
+    Usage: GET /api/chat/conversations/{id}/
+
+    create:
+    Create a new conversation. The authenticated user must be included in the participants.
+    Permissions: Authenticated User or Admin User.
+    Usage: POST /api/chat/conversations/
+    Body: {"participants": [1, 2], "topic": "Service Inquiry"}
+
+    update:
+    Update an existing conversation.
+    Permissions: Authenticated User (participant) or Admin User.
+    Usage: PUT /api/chat/conversations/{id}/
+    Body: {"topic": "Updated Service Inquiry"}
+
+    partial_update:
+    Partially update an existing conversation.
+    Permissions: Authenticated User (participant) or Admin User.
+    Usage: PATCH /api/chat/conversations/{id}/
+    Body: {"topic": "New Topic"}
+
+    destroy:
+    Delete a conversation.
+    Permissions: Authenticated User (participant) or Admin User.
+    Usage: DELETE /api/chat/conversations/{id}/
+    """
     queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
     permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsConversationParticipantOrAdmin)]
@@ -29,6 +65,42 @@ class ConversationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         serializer.save()
 
 class MessageViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Messages to be viewed or edited.
+
+    list:
+    Return a list of messages for conversations the authenticated user is a participant in.
+    Permissions: Authenticated User (participant in conversation) or Admin User.
+    Usage: GET /api/chat/messages/
+
+    retrieve:
+    Return a specific message by ID.
+    Permissions: Authenticated User (participant in conversation) or Admin User.
+    Usage: GET /api/chat/messages/{id}/
+
+    create:
+    Create a new message within a conversation. The authenticated user must be a participant in the conversation.
+    Permissions: Authenticated User (participant in conversation) or Admin User.
+    Usage: POST /api/chat/messages/
+    Body: {"conversation": 1, "content": "Hello there!"}
+
+    update:
+    Update an existing message.
+    Permissions: Authenticated User (sender) or Admin User.
+    Usage: PUT /api/chat/messages/{id}/
+    Body: {"content": "Updated message content."}
+
+    partial_update:
+    Partially update an existing message.
+    Permissions: Authenticated User (sender) or Admin User.
+    Usage: PATCH /api/chat/messages/{id}/
+    Body: {"content": "Partial update."}
+
+    destroy:
+    Delete a message.
+    Permissions: Authenticated User (sender) or Admin User.
+    Usage: DELETE /api/chat/messages/{id}/
+    """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
 

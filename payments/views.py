@@ -7,6 +7,42 @@ from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsUserO
 from api.mixins import OwnerFilteredQuerysetMixin
 
 class PaymentMethodViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+    """
+    API endpoint that allows Payment Methods to be viewed or edited.
+
+    list:
+    Return a list of payment methods for the authenticated user.
+    Permissions: Authenticated Client/Technician User (owner) or Admin User.
+    Usage: GET /api/payments/methods/
+
+    retrieve:
+    Return a specific payment method by ID.
+    Permissions: Authenticated Client/Technician User (owner) or Admin User.
+    Usage: GET /api/payments/methods/{id}/
+
+    create:
+    Create a new payment method for the authenticated user.
+    Permissions: Authenticated Client/Technician User or Admin User.
+    Usage: POST /api/payments/methods/
+    Body: {"user": 1, "card_number": "xxxx-xxxx-xxxx-1234", "card_type": "Visa", "expiration_date": "12/25"}
+
+    update:
+    Update an existing payment method.
+    Permissions: Authenticated Client/Technician User (owner) or Admin User.
+    Usage: PUT /api/payments/methods/{id}/
+    Body: {"card_type": "MasterCard"}
+
+    partial_update:
+    Partially update an existing payment method.
+    Permissions: Authenticated Client/Technician User (owner) or Admin User.
+    Usage: PATCH /api/payments/methods/{id}/
+    Body: {"expiration_date": "01/26"}
+
+    destroy:
+    Delete a payment method.
+    Permissions: Authenticated Client/Technician User (owner) or Admin User.
+    Usage: DELETE /api/payments/methods/{id}/
+    """
     queryset = PaymentMethod.objects.all()
     serializer_class = PaymentMethodSerializer
     permission_classes = [IsAdminUser | ((IsClientUser | IsTechnicianUser) & IsUserOwnerOrAdmin)]

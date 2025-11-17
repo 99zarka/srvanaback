@@ -6,6 +6,42 @@ from .serializers import ReviewSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsReviewOwnerOrAdmin, IsReviewTechnicianOrAdmin
 
 class ReviewViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows Reviews to be viewed or edited.
+
+    list:
+    Return a list of reviews. Clients see reviews they made or for technicians they hired. Technicians see reviews they received or made. Admins see all.
+    Permissions: Authenticated User (client/technician owner) or Admin User.
+    Usage: GET /api/reviews/
+
+    retrieve:
+    Return a specific review by ID.
+    Permissions: Authenticated User (client/technician owner) or Admin User.
+    Usage: GET /api/reviews/{id}/
+
+    create:
+    Create a new review.
+    Permissions: Authenticated Client User, Technician User, or Admin User.
+    Usage: POST /api/reviews/
+    Body: {"reviewer": 1, "technician": 2, "order": 1, "rating": 5, "comment": "Great service!"}
+
+    update:
+    Update an existing review.
+    Permissions: Authenticated Client User (owner) or Admin User.
+    Usage: PUT /api/reviews/{id}/
+    Body: {"rating": 4}
+
+    partial_update:
+    Partially update an existing review.
+    Permissions: Authenticated Client User (owner) or Admin User.
+    Usage: PATCH /api/reviews/{id}/
+    Body: {"comment": "Service was good, but a bit slow."}
+
+    destroy:
+    Delete a review.
+    Permissions: Authenticated Client User (owner) or Admin User.
+    Usage: DELETE /api/reviews/{id}/
+    """
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
 
