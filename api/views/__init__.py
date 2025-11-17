@@ -1,4 +1,3 @@
-from .notification_views import NotificationPreferenceViewSet, NotificationViewSet
 from .review_views import ReviewViewSet
 from .issue_report_views import IssueReportViewSet
 from .transaction_views import TransactionViewSet

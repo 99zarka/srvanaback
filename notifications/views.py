@@ -1,10 +1,10 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
-from ..models.notifications import NotificationPreference, Notification
-from ..serializers import NotificationPreferenceSerializer, NotificationSerializer
-from ..permissions import IsAdminUser, IsClientUser, IsUserOwnerOrAdmin
-from ..mixins import OwnerFilteredQuerysetMixin
+from .models import NotificationPreference, Notification
+from .serializers import NotificationPreferenceSerializer, NotificationSerializer
+from api.permissions import IsAdminUser, IsClientUser, IsUserOwnerOrAdmin
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class NotificationPreferenceViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = NotificationPreference.objects.all()

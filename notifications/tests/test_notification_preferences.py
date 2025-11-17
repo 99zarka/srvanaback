@@ -1,8 +1,8 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.urls import reverse
-from api.models import NotificationPreference, User
-from api.models.users import UserType
+from ..models import NotificationPreference
+from users.models import User, UserType
 
 class NotificationPreferenceTests(APITestCase):
     def setUp(self):

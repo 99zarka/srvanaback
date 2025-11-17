@@ -1,0 +1,2 @@
+from .test_notifications import NotificationTests
+from .test_notification_preferences import NotificationPreferenceTests

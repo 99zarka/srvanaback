@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models.notifications import NotificationPreference, Notification
+from .models import NotificationPreference, Notification
 from users.models import User # Import User for PrimaryKeyRelatedField queryset
 
 class NotificationPreferenceSerializer(serializers.ModelSerializer):
