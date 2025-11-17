@@ -1,8 +1,8 @@
 from rest_framework import viewsets, permissions
-from ..models.addresses import Address
-from ..serializers import AddressSerializer
-from ..permissions import IsAdminUser, IsClientUser, IsUserOwnerOrAdmin
-from ..mixins import OwnerFilteredQuerysetMixin
+from .models import Address
+from .serializers import AddressSerializer
+from api.permissions import IsAdminUser, IsClientUser, IsUserOwnerOrAdmin
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class AddressViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = Address.objects.all()

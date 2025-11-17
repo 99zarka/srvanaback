@@ -1,6 +1,5 @@
 # This makes the 'serializers' directory a Python package.
 
-from .address_serializers import AddressSerializer
 from .payment_serializers import PaymentMethodSerializer
 from .notification_serializers import NotificationPreferenceSerializer, NotificationSerializer
 from .review_serializers import ReviewSerializer

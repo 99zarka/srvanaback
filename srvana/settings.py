@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'orders',
     'chat',
     'technicians',
+    'addresses',
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
