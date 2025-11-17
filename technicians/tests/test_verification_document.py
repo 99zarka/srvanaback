@@ -2,7 +2,8 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
 from django.urls import reverse
-from api.models import VerificationDocument, User, UserType
+from ..models import VerificationDocument
+from users.models import User, UserType
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 import datetime
@@ -182,7 +183,7 @@ class VerificationDocumentAPITests(TestCase):
 
     def test_delete_doc_client_forbidden(self):
         client = self.get_auth_client(self.client_user)
-        response = self.client.delete(self.detail_url)
+        response = client.delete(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_delete_own_doc_technician(self):

@@ -1,10 +1,10 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
-from ..models.technicians import TechnicianAvailability, TechnicianSkill, VerificationDocument
-from ..serializers import TechnicianAvailabilitySerializer, TechnicianSkillSerializer, VerificationDocumentSerializer
-from ..permissions import IsAdminUser, IsTechnicianUser, IsTechnicianOwnerOrAdmin, IsAuthenticatedOrReadOnly
-from ..mixins import OwnerFilteredQuerysetMixin
+from .models import TechnicianAvailability, TechnicianSkill, VerificationDocument
+from .serializers import TechnicianAvailabilitySerializer, TechnicianSkillSerializer, VerificationDocumentSerializer
+from api.permissions import IsAdminUser, IsTechnicianUser, IsTechnicianOwnerOrAdmin, IsAuthenticatedOrReadOnly
+from api.mixins import OwnerFilteredQuerysetMixin
 
 class TechnicianAvailabilityViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = TechnicianAvailability.objects.all()

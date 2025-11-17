@@ -3,10 +3,12 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from datetime import date, datetime
 from django.utils import timezone
-from api.models import (
-    UserType, User, ServiceCategory, Service, Order,
-    TechnicianSkill, TechnicianAvailability, VerificationDocument
+from ..models import TechnicianAvailability
+from users.models import (
+    UserType, User
 )
+from services.models import ServiceCategory, Service
+from orders.models import Order
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.urls import reverse

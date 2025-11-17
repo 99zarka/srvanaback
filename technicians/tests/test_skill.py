@@ -1,8 +1,10 @@
-from rest_framework import status
+from django.test import TestCase
 from rest_framework.test import APITestCase
+from rest_framework import status
 from django.urls import reverse
-from api.models import TechnicianSkill, User, Service, ServiceCategory
-from api.models.users import UserType
+from ..models import TechnicianSkill
+from users.models import User, UserType
+from services.models import Service, ServiceCategory
 from django.contrib.auth.hashers import make_password
 from rest_framework_simplejwt.tokens import RefreshToken
 

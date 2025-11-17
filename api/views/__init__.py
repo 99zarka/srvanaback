@@ -1,4 +1,3 @@
-from .technician_views import TechnicianAvailabilityViewSet, TechnicianSkillViewSet, VerificationDocumentViewSet
 from .address_views import AddressViewSet
 from .payment_views import PaymentMethodViewSet
 from .notification_views import NotificationPreferenceViewSet, NotificationViewSet

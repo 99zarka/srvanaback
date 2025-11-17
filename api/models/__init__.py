@@ -1,5 +1,4 @@
 # Review is now a top-level model, so it's imported directly from .reviews
-from .technicians import TechnicianAvailability, TechnicianSkill, VerificationDocument
 from .addresses import Address
 from .payment_methods import PaymentMethod
 from .notifications import NotificationPreference, Notification

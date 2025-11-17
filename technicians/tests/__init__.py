@@ -1,0 +1,3 @@
+from .test_availability import TechnicianAvailabilityAPITests
+from .test_skill import TechnicianSkillTests
+from .test_verification_document import VerificationDocumentAPITests

@@ -1,6 +1,5 @@
 # This makes the 'serializers' directory a Python package.
 
-from .technician_serializers import TechnicianAvailabilitySerializer, TechnicianSkillSerializer, VerificationDocumentSerializer
 from .address_serializers import AddressSerializer
 from .payment_serializers import PaymentMethodSerializer
 from .notification_serializers import NotificationPreferenceSerializer, NotificationSerializer

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from ..models.technicians import TechnicianAvailability, TechnicianSkill, VerificationDocument
+from .models import TechnicianAvailability, TechnicianSkill, VerificationDocument
 
 class TechnicianAvailabilitySerializer(serializers.ModelSerializer):
     class Meta:
