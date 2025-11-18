@@ -133,12 +133,17 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:8000", # Allow your frontend to access the API
-#     "http://127.0.0.1:8000",
-# ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000", # Allow React frontend to access the API
+    "http://localhost:5173", # Allow React frontend to access the API
+    "http://localhost:8000", # Default Django runserver port
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8000",
+    "http://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
+]
 # If you want to allow all origins during development, you can use:
-CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
+# CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
 
 # WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
 # It is used here for development/testing purposes as per user request.
