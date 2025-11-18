@@ -140,8 +140,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:8000",
-    "http://99zarka.github.io/Srvanaserviceplatform",
-    "https://99zarka.github.io/Srvanaserviceplatform",
+    "http://99zarka.github.io",
+    "https://99zarka.github.io",
     "http://www.srvana.tech",
     "https://www.srvana.tech",
     "http://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
