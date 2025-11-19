@@ -16,10 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from rest_framework_simplejwt.views import TokenRefreshView
+from users.views.custom_token_views import CustomTokenObtainPairView # Import your custom view
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
@@ -53,7 +51,7 @@ urlpatterns = [
     path('api/reviews/', include('reviews.urls')),
     path('api/issue_reports/', include('issue_reports.urls')),
     path('api/transactions/', include('transactions.urls')),
-    path('api/login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'), # Use your custom view here
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api-auth/', include('rest_framework.urls')),
     path('api/files/', include('filesupload.urls')), # Include filesupload app URLs
