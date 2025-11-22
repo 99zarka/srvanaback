@@ -144,7 +144,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://99zarka.github.io",
     "http://www.srvana.tech",
     "https://www.srvana.tech",
-    "http://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
+    "http://srvanaback-268062404120.europe-west1.run.app",
+    "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
 ]
 # If you want to allow all origins during development, you can use:
 # CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
