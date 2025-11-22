@@ -89,30 +89,37 @@ REST_FRAMEWORK = {
     'ATOMIC_REQUESTS': True, # Ensures database transactions are atomic for each request
 }
 
-if DEBUG:
-    SWAGGER_SETTINGS = {
-        'SCHEMES': ['http', 'https'], # Allow both for local development
-        'DEFAULT_API_URL': 'http://127.0.0.1:8000', # Default local development URL
-        'SERVERS': [{
-            'url': 'http://127.0.0.1:8000',
-            'description': 'Local development server'
-        }],
-    }
-    SECURE_PROXY_SSL_HEADER = None # No proxy header needed locally
-    USE_X_FORWARDED_HOST = False
-    SECURE_SSL_REDIRECT = False
-else:
-    SWAGGER_SETTINGS = {
-        'SCHEMES': ['https'],
-        'DEFAULT_API_URL': 'https://srvanaback-268062404120.europe-west1.run.app',
-        'SERVERS': [{
-            'url': 'https://srvanaback-268062404120.europe-west1.run.app',
-            'description': 'Production server'
-        }],
-    }
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    USE_X_FORWARDED_HOST = True
-    SECURE_SSL_REDIRECT = True
+# Production-oriented Swagger settings. drf-yasg will infer the scheme from the request.
+SWAGGER_SETTINGS = {
+    'DEFAULT_API_URL': 'https://srvanaback-268062404120.europe-west1.run.app', # This is for default client display, not enforcement
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        }
+    },
+    'USE_SESSION_AUTH': False, # Disable session auth for API documentation
+    'DOC_EXPANSION': 'none',
+    'APIS_SORTER': 'alpha',
+    'OPERATIONS_SORTER': 'alpha',
+    'JSON_EDITOR': True,
+    'SHOW_REQUEST_HEADERS': True,
+    'SUPPORTED_SUBMIT_METHODS': ['get', 'post', 'put', 'delete', 'patch'],
+    'VALIDATOR_URL': None,
+}
+
+# When behind a reverse proxy that handles SSL/TLS termination, set these
+# to let Django know that the request was originally secure.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+SECURE_SSL_REDIRECT = True # Force HTTPS redirects in production
+
+# Define API_DOMAIN for use in urlpatterns if needed
+API_DOMAIN = 'https://srvanaback-268062404120.europe-west1.run.app'
 
 
 from datetime import timedelta
