@@ -14,6 +14,10 @@ from pathlib import Path
 import sys
 import os
 import cloudinary
+from datetime import timedelta # Import timedelta here for SIMPLE_JWT
+
+# Determine if running in a production environment via an environment variable
+IS_PRODUCTION = os.environ.get('DJANGO_PRODUCTION', 'False').lower() == 'true'
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,7 +30,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-p6ehu0zote8&-p8$!!kslzx@npy@okh99z+jep9*oa-+7m1!or'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = True # DEBUG can remain True for local development without affecting HTTPS redirects now
 
 GOOGLE_OAUTH2_CLIENT_ID = "268062404120-nfkt7hf22qe38i8kerp11ju3s22ut4j1.apps.googleusercontent.com"
 
@@ -89,9 +93,8 @@ REST_FRAMEWORK = {
     'ATOMIC_REQUESTS': True, # Ensures database transactions are atomic for each request
 }
 
-# Production-oriented Swagger settings. drf-yasg will infer the scheme from the request.
+# Base Swagger settings. Scheme and host will be inferred from the request.
 SWAGGER_SETTINGS = {
-    'DEFAULT_API_URL': 'https://srvanaback-268062404120.europe-west1.run.app', # This is for default client display, not enforcement
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
@@ -102,8 +105,8 @@ SWAGGER_SETTINGS = {
             'in': 'header'
         }
     },
-    'USE_SESSION_AUTH': False, # Disable session auth for API documentation
-    'DOC_EXPANSION': 'none',
+    'USE_SESSION_AUTH': False,
+    'DOC_EXPANSION': 'list',  # Set to 'full' for expanded UI
     'APIS_SORTER': 'alpha',
     'OPERATIONS_SORTER': 'alpha',
     'JSON_EDITOR': True,
@@ -112,17 +115,23 @@ SWAGGER_SETTINGS = {
     'VALIDATOR_URL': None,
 }
 
-# When behind a reverse proxy that handles SSL/TLS termination, set these
-# to let Django know that the request was originally secure.
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = True
-SECURE_SSL_REDIRECT = True # Force HTTPS redirects in production
+if IS_PRODUCTION:
+    # Production-specific settings for HTTPS
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    SECURE_SSL_REDIRECT = True # Force HTTPS redirects in production
+    API_DOMAIN = 'https://srvanaback-268062404120.europe-west1.run.app'
+    SWAGGER_SETTINGS['DEFAULT_API_URL'] = API_DOMAIN
+    SWAGGER_SETTINGS['SCHEMES'] = ['https']
+else:
+    # Local development settings for HTTP
+    SECURE_PROXY_SSL_HEADER = None
+    USE_X_FORWARDED_HOST = False
+    SECURE_SSL_REDIRECT = False
+    API_DOMAIN = 'http://127.0.0.1:8000'
+    SWAGGER_SETTINGS['DEFAULT_API_URL'] = API_DOMAIN
+    SWAGGER_SETTINGS['SCHEMES'] = ['http', 'https'] # Allow both for local development, with http as primary
 
-# Define API_DOMAIN for use in urlpatterns if needed
-API_DOMAIN = 'https://srvanaback-268062404120.europe-west1.run.app'
-
-
-from datetime import timedelta
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=365), # Set to a very long duration
@@ -166,16 +175,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-if DEBUG:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:3000", # Allow React frontend to access the API
-        "http://localhost:5173", # Allow React frontend to access the API
-        "http://localhost:8000", # Default Django runserver port
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8000",
-    ]
-else:
+if IS_PRODUCTION:
     CORS_ALLOWED_ORIGINS = [
         "http://99zarka.github.io",
         "https://99zarka.github.io",
@@ -183,6 +183,15 @@ else:
         "https://www.srvana.tech",
         "http://srvanaback-268062404120.europe-west1.run.app",
         "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
+    ]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000", # Allow React frontend to access the API
+        "http://localhost:5173", # Allow React frontend to access the API
+        "http://localhost:8000", # Default Django runserver port
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
     ]
 # If you want to allow all origins during development, you can use:
 # CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
@@ -221,7 +230,7 @@ WSGI_APPLICATION = 'srvana.wsgi.application'
 #     'default': {
 #         'ENGINE': 'django.db.backends.sqlite3',
 #         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
+    # }
 # }
 
 # Cloud PostgreSQL database configuration

@@ -34,7 +34,7 @@ schema_view = get_schema_view(
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
-   # Remove the 'url' parameter here to allow drf-yasg to auto-detect the scheme
+   url=settings.API_DOMAIN, # Use API_DOMAIN from settings for client-side base URL
 )
 
 urlpatterns = [
