@@ -175,24 +175,21 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-if IS_PRODUCTION:
-    CORS_ALLOWED_ORIGINS = [
-        "http://99zarka.github.io",
-        "https://99zarka.github.io",
-        "http://www.srvana.tech",
-        "https://www.srvana.tech",
-        "http://srvanaback-268062404120.europe-west1.run.app",
-        "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
-    ]
-else:
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:3000", # Allow React frontend to access the API
-        "http://localhost:5173", # Allow React frontend to access the API
-        "http://localhost:8000", # Default Django runserver port
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8000",
-    ]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000", # Allow React frontend to access the API
+    "http://localhost:5173", # Allow React frontend to access the API
+    "http://localhost:8000", # Default Django runserver port
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:8000",
+    "http://99zarka.github.io",
+    "https://99zarka.github.io",
+    "http://www.srvana.tech",
+    "https://www.srvana.tech",
+    "http://srvanaback-268062404120.europe-west1.run.app",
+    "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
+]
+
 # If you want to allow all origins during development, you can use:
 # CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
 
