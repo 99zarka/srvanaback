@@ -190,6 +190,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
 ]
 
+CORS_ALLOW_CREDENTIALS = True # Allow credentials (e.g., Authorization headers)
+
 # If you want to allow all origins during development, you can use:
 # CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
 
