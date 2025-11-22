@@ -91,6 +91,7 @@ REST_FRAMEWORK = {
 
 SWAGGER_SETTINGS = {
     'SCHEMES': ['https'],
+    'DEFAULT_API_URL': 'https://srvanaback-268062404120.europe-west1.run.app',
     'SERVERS': [{
         'url': 'https://srvanaback-268062404120.europe-west1.run.app',
         'description': 'Production server'
@@ -140,6 +141,12 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+# When behind a reverse proxy that handles SSL/TLS termination, set this
+# to let Django know that the request was originally secure.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+SECURE_SSL_REDIRECT = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000", # Allow React frontend to access the API
