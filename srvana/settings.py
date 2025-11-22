@@ -91,6 +91,10 @@ REST_FRAMEWORK = {
 
 SWAGGER_SETTINGS = {
     'SCHEMES': ['https'],
+    'SERVERS': [{
+        'url': 'https://srvanaback-268062404120.europe-west1.run.app',
+        'description': 'Production server'
+    }],
 }
 
 from datetime import timedelta
