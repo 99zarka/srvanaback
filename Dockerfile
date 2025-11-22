@@ -4,6 +4,8 @@ FROM python:3.10-slim-bullseye
 # Set the working directory in the container
 WORKDIR /app
 
+ENV DJANGO_PRODUCTION=True
+
 # Install psycopg2-binary dependencies
 RUN apt-get update && apt-get install -y libpq-dev gcc
 
