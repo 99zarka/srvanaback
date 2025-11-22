@@ -89,6 +89,10 @@ REST_FRAMEWORK = {
     'ATOMIC_REQUESTS': True, # Ensures database transactions are atomic for each request
 }
 
+SWAGGER_SETTINGS = {
+    'SCHEMES': ['https'],
+}
+
 from datetime import timedelta
 
 SIMPLE_JWT = {
