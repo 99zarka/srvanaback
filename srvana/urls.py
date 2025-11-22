@@ -21,6 +21,12 @@ from users.views.custom_token_views import CustomTokenObtainPairView # Import yo
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
+from django.conf import settings # Import settings
+
+if settings.DEBUG:
+    API_URL = 'http://127.0.0.1:8000' # Local development URL
+else:
+    API_URL = 'https://srvanaback-268062404120.europe-west1.run.app' # Production URL
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -33,6 +39,7 @@ schema_view = get_schema_view(
    ),
    public=True,
    permission_classes=(permissions.AllowAny,),
+   url=API_URL, # Use the conditional API_URL
 )
 
 urlpatterns = [

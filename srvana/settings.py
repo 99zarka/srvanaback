@@ -89,14 +89,31 @@ REST_FRAMEWORK = {
     'ATOMIC_REQUESTS': True, # Ensures database transactions are atomic for each request
 }
 
-SWAGGER_SETTINGS = {
-    'SCHEMES': ['https'],
-    'DEFAULT_API_URL': 'https://srvanaback-268062404120.europe-west1.run.app',
-    'SERVERS': [{
-        'url': 'https://srvanaback-268062404120.europe-west1.run.app',
-        'description': 'Production server'
-    }],
-}
+if DEBUG:
+    SWAGGER_SETTINGS = {
+        'SCHEMES': ['http', 'https'], # Allow both for local development
+        'DEFAULT_API_URL': 'http://127.0.0.1:8000', # Default local development URL
+        'SERVERS': [{
+            'url': 'http://127.0.0.1:8000',
+            'description': 'Local development server'
+        }],
+    }
+    SECURE_PROXY_SSL_HEADER = None # No proxy header needed locally
+    USE_X_FORWARDED_HOST = False
+    SECURE_SSL_REDIRECT = False
+else:
+    SWAGGER_SETTINGS = {
+        'SCHEMES': ['https'],
+        'DEFAULT_API_URL': 'https://srvanaback-268062404120.europe-west1.run.app',
+        'SERVERS': [{
+            'url': 'https://srvanaback-268062404120.europe-west1.run.app',
+            'description': 'Production server'
+        }],
+    }
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    SECURE_SSL_REDIRECT = True
+
 
 from datetime import timedelta
 
@@ -142,26 +159,24 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# When behind a reverse proxy that handles SSL/TLS termination, set this
-# to let Django know that the request was originally secure.
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = True
-SECURE_SSL_REDIRECT = True
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000", # Allow React frontend to access the API
-    "http://localhost:5173", # Allow React frontend to access the API
-    "http://localhost:8000", # Default Django runserver port
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8000",
-    "http://99zarka.github.io",
-    "https://99zarka.github.io",
-    "http://www.srvana.tech",
-    "https://www.srvana.tech",
-    "http://srvanaback-268062404120.europe-west1.run.app",
-    "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
-]
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000", # Allow React frontend to access the API
+        "http://localhost:5173", # Allow React frontend to access the API
+        "http://localhost:8000", # Default Django runserver port
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+    ]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://99zarka.github.io",
+        "https://99zarka.github.io",
+        "http://www.srvana.tech",
+        "https://www.srvana.tech",
+        "http://srvanaback-268062404120.europe-west1.run.app",
+        "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
+    ]
 # If you want to allow all origins during development, you can use:
 # CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
 
