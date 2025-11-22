@@ -16,6 +16,7 @@ COPY . /app
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Expose port 8000 to the outside world
+
 EXPOSE 8000
 
 # Run Django migrations and start the server
