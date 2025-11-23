@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'corsheaders', # Add corsheaders
     'drf_yasg', # Added for API documentation
     'filesupload', # New app for file uploads
+    'cloudinary_storage', # Add cloudinary_storage for Cloudinary integration
 ]
 
 # Cloudinary Configuration
@@ -294,6 +295,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
+
+# Cloudinary storage for Django media files
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.CloudinaryMediaStorage'
+# You may also want to set DEFAULT_FILE_STORAGE for static files if you use Cloudinary for that
+# STATICFILES_STORAGE = 'cloudinary_storage.storage.CloudinaryStaticStorage'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
