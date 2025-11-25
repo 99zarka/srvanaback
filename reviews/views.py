@@ -90,3 +90,35 @@ class ReviewViewSet(viewsets.ModelViewSet):
             serializer.save()
         else:
             raise PermissionDenied("Only clients, technicians, and admins can create reviews.")
+
+class WorkerReviewsViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint that allows technicians to view reviews they have received.
+
+    list:
+    Return a list of reviews received by the authenticated technician.
+    Permissions: Authenticated Technician User only.
+    Usage: GET /api/reviews/worker-reviews/
+
+    retrieve:
+    Return a specific review received by the authenticated technician.
+    Permissions: Authenticated Technician User only.
+    Usage: GET /api/reviews/worker-reviews/{review_id}/
+    """
+    serializer_class = ReviewSerializer
+
+    def get_permissions(self):
+        self.permission_classes = [IsTechnicianUser]
+        return [permission() for permission in self.permission_classes]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return Review.objects.none()
+
+        # Only technicians can access this endpoint
+        if user.user_type.user_type_name != 'technician':
+            return Review.objects.none()
+
+        # Return reviews where this technician is the one being reviewed
+        return Review.objects.filter(technician=user).order_by('-created_at')

@@ -1,9 +1,15 @@
 from rest_framework import viewsets, permissions, serializers
 from .models import Order, ProjectOffer
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from .serializers import OrderSerializer, ProjectOfferSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsClientOwnerOrAdmin, IsTechnicianOwnerOrAdmin
-from api.mixins import OwnerFilteredQuerysetMixin # This import is no longer needed, but keeping for now to avoid breaking other apps that might use it.
+from api.mixins import OwnerFilteredQuerysetMixin
+
+class OrderPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class OrderViewSet(viewsets.ModelViewSet):
     """
@@ -42,6 +48,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     Permissions: Authenticated User (client/technician owner) or Admin User.
     Usage: DELETE /api/orders/{order_id}/
     """
+    pagination_class = OrderPagination
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
@@ -49,21 +56,31 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action == 'create':
             self.permission_classes = [permissions.IsAuthenticated]
+        elif self.action == 'list':
+            # For list, only allow clients and admins. Technicians should not see generic order list
+            self.permission_classes = [IsAdminUser | IsClientUser]
         elif self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
-        else: # list, retrieve
-            self.permission_classes = [permissions.IsAuthenticated]
+        else: # retrieve
+            self.permission_classes = [IsAdminUser | IsClientUser | IsTechnicianUser]
         return [permission() for permission in self.permission_classes]
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated and user.user_type.user_type_name == 'admin':
+        if not user.is_authenticated:
+            return Order.objects.none() # No orders for unauthenticated users
+
+        if user.user_type.user_type_name == 'admin':
             return Order.objects.all()
-        elif user.is_authenticated and user.user_type.user_type_name == 'client':
+        elif user.user_type.user_type_name == 'client':
             return Order.objects.filter(client_user=user)
-        elif user.is_authenticated and user.user_type.user_type_name == 'technician':
+        elif user.user_type.user_type_name == 'technician':
+            # Technicians can only see orders they're assigned to, not a generic list
+            # For list action, return empty queryset to enforce permission restrictions
+            if self.action == 'list':
+                return Order.objects.none()
             return Order.objects.filter(technician_user=user)
-        return Order.objects.all() # Return all for unauthenticated, let permissions handle 401/403
+        return Order.objects.none() # Should not be reached if user_type is handled
 
 class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     """
@@ -143,3 +160,61 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             serializer.save()
         else:
             raise PermissionDenied("Only technicians and admins can create project offers.")
+
+class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint that allows technicians to view their assigned tasks (orders).
+
+    list:
+    Return a list of orders assigned to the authenticated technician.
+    Supports filtering by order_status using order_status__in parameter (e.g., ?order_status__in=pending,in_progress)
+    Supports limiting results using limit parameter (e.g., ?limit=3)
+    Permissions: Authenticated Technician User only.
+    Usage: GET /api/orders/worker-tasks/
+    Usage: GET /api/orders/worker-tasks/?order_status__in=pending,in_progress&limit=3
+
+    retrieve:
+    Return a specific order assigned to the authenticated technician.
+    Permissions: Authenticated Technician User only.
+    Usage: GET /api/orders/worker-tasks/{order_id}/
+    """
+    serializer_class = OrderSerializer
+    lookup_field = 'order_id'
+
+    def get_permissions(self):
+        self.permission_classes = [IsTechnicianUser]
+        return [permission() for permission in self.permission_classes]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return Order.objects.none()
+
+        # Only technicians can access this endpoint
+        if user.user_type.user_type_name != 'technician':
+            return Order.objects.none()
+
+        # Start with orders assigned to this technician
+        queryset = Order.objects.filter(technician_user=user)
+
+        # Apply status filtering if provided (use order_status, not status)
+        status_filter = self.request.query_params.get('status__in')
+        if status_filter:
+            status_list = [status.strip() for status in status_filter.split(',')]
+            queryset = queryset.filter(order_status__in=status_list)
+        
+        # Also support order_status__in parameter
+        order_status_filter = self.request.query_params.get('order_status__in')
+        if order_status_filter:
+            status_list = [status.strip() for status in order_status_filter.split(',')]
+            queryset = queryset.filter(order_status__in=status_list)
+
+        # Apply limit if provided - must do this before ordering
+        limit = self.request.query_params.get('limit')
+        if limit and limit.isdigit():
+            queryset = queryset.order_by('-creation_timestamp')[:int(limit)]
+        else:
+            # Always order by creation date, most recent first
+            queryset = queryset.order_by('-creation_timestamp')
+
+        return queryset

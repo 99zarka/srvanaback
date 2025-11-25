@@ -5,9 +5,13 @@ from users.models import User
 class IsClientUser(permissions.BasePermission):
     """
     Custom permission to only allow clients to access certain objects.
+    Includes technicians (they can be customers too).
     """
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.user_type.user_type_name == 'client'
+        if not request.user or not request.user.is_authenticated:
+            return False
+        user_type = request.user.user_type.user_type_name
+        return user_type in ['client', 'technician']
 
 class IsTechnicianUser(permissions.BasePermission):
     """

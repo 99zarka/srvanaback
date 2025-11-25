@@ -1,8 +1,14 @@
 from rest_framework import viewsets, permissions
+from rest_framework.pagination import PageNumberPagination
 from users.models import User, UserType
 from users.serializers import UserTypeSerializer, UserSerializer
 from api.permissions import IsAdminUser, IsOwnerOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
+
+class UserPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class UserTypeViewSet(viewsets.ModelViewSet):
     """
@@ -76,6 +82,7 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Delete a user. Requires authentication and either admin privileges or ownership.
     Usage: DELETE /api/users/{id}/
     """
+    pagination_class = UserPagination
     queryset = User.objects.all()
     serializer_class = UserSerializer
     owner_field = 'user_id'
@@ -93,5 +100,14 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             # For these actions, return the full queryset and let object-level permissions handle access
             return base_queryset
-        # For 'list' action, filter by owner
-        return super().get_filtered_queryset(user, base_queryset)
+        # For 'list' action, return all users (no filtering by owner)
+        return base_queryset
+
+class PublicUserViewSet(UserViewSet):
+    """
+    Public API endpoint to list users (for directory/search).
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get_permissions(self):
+        return [permissions.AllowAny()]

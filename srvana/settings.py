@@ -92,6 +92,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_SCHEMA_CLASS': 'rest_framework.schemas.coreapi.AutoSchema',
     'ATOMIC_REQUESTS': True, # Ensures database transactions are atomic for each request
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
 }
 
 # Base Swagger settings. Scheme and host will be inferred from the request.

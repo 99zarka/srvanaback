@@ -1,7 +1,18 @@
 from rest_framework import viewsets
+from rest_framework.pagination import PageNumberPagination
 from services.models import ServiceCategory, Service
 from services.serializers import ServiceCategorySerializer, ServiceSerializer
 from api.permissions import IsAdminUser, IsAuthenticatedOrReadOnly
+
+class ServiceCategoryPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class ServicePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class ServiceCategoryViewSet(viewsets.ModelViewSet):
     """
@@ -40,6 +51,7 @@ class ServiceCategoryViewSet(viewsets.ModelViewSet):
     Permissions: Admin User.
     Usage: DELETE /api/services/categories/{id}/
     """
+    pagination_class = ServiceCategoryPagination
     queryset = ServiceCategory.objects.all()
     serializer_class = ServiceCategorySerializer
 
@@ -87,6 +99,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     Permissions: Admin User.
     Usage: DELETE /api/services/{id}/
     """
+    pagination_class = ServicePagination
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
 

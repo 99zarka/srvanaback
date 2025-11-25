@@ -4,7 +4,14 @@ from rest_framework import serializers
 from .models import TechnicianAvailability, TechnicianSkill, VerificationDocument
 from .serializers import TechnicianAvailabilitySerializer, TechnicianSkillSerializer, VerificationDocumentSerializer
 from api.permissions import IsAdminUser, IsTechnicianUser, IsTechnicianOwnerOrAdmin, IsAuthenticatedOrReadOnly
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Avg
+from datetime import timedelta, datetime
+from django.utils import timezone
 from api.mixins import OwnerFilteredQuerysetMixin
+from orders.models import Order
+from reviews.models import Review # Added import for Review model
 
 class TechnicianAvailabilityViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     """
@@ -153,6 +160,203 @@ class TechnicianSkillViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             serializer.save()
         else:
             raise PermissionDenied("Only technicians and admins can create skills.")
+
+class EarningsSummaryAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsTechnicianUser]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_authenticated or user.user_type.user_type_name != 'technician':
+            raise PermissionDenied("Only authenticated technicians can view earnings summaries.")
+
+        today = timezone.now().date()
+        start_of_week = today - timedelta(days=today.weekday())
+        start_of_month = today.replace(day=1)
+
+        # Total earnings
+        total_earnings = Order.objects.filter(
+            technician_user=user,
+            order_status='completed'
+        ).aggregate(
+            total=Sum('final_price')
+        )['total'] or 0.00
+
+        # Weekly earnings
+        weekly_earnings = Order.objects.filter(
+            technician_user=user,
+            order_status='completed',
+            job_completion_timestamp__isnull=False,
+            job_completion_timestamp__gte=start_of_week
+        ).aggregate(
+            total=Sum('final_price')
+        )['total'] or 0.00
+
+        # Monthly earnings
+        monthly_earnings = Order.objects.filter(
+            technician_user=user,
+            order_status='completed',
+            job_completion_timestamp__isnull=False,
+            job_completion_timestamp__gte=start_of_month
+        ).aggregate(
+            total=Sum('final_price')
+        )['total'] or 0.00
+
+        # Number of completed orders
+        completed_orders_count = Order.objects.filter(
+            technician_user=user,
+            order_status='completed'
+        ).count()
+
+        # Number of pending orders
+        pending_orders_count = Order.objects.filter(
+            technician_user=user,
+            order_status='pending'
+        ).count()
+
+        # Pending earnings (sum of final_price from pending orders)
+        pending_earnings = Order.objects.filter(
+            technician_user=user,
+            order_status='pending'
+        ).aggregate(
+            total=Sum('final_price')
+        )['total'] or 0.00
+
+        data = {
+            'total_earnings': total_earnings,
+            'weekly_earnings': weekly_earnings,
+            'this_month_earnings': monthly_earnings,
+            'completed_orders_count': completed_orders_count,
+            'pending_orders_count': pending_orders_count,
+            'pending_earnings': pending_earnings,
+        }
+        return Response(data)
+
+class WorkerSummaryAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_authenticated or user.user_type.user_type_name not in ['technician', 'admin']:
+            raise PermissionDenied("Only authenticated technicians and admins can view worker summaries.")
+
+        # Calculate active tasks (e.g., in_progress, pending, accepted)
+        active_tasks = Order.objects.filter(
+            technician_user=user,
+            order_status__in=['pending', 'accepted', 'in_progress']
+        ).count()
+
+        # Calculate completed tasks
+        completed_tasks = Order.objects.filter(
+            technician_user=user,
+            order_status='completed'
+        ).count()
+
+        # Calculate total earnings (sum of final_price from completed orders)
+        total_earnings = Order.objects.filter(
+            technician_user=user,
+            order_status='completed'
+        ).aggregate(total=Sum('final_price'))['total'] or 0.00
+
+        # Calculate average rating (from reviews where this technician is the subject)
+        average_rating = Review.objects.filter(
+            technician=user
+        ).aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0.00
+
+        data = {
+            'active_tasks': active_tasks,
+            'completed_tasks': completed_tasks,
+            'total_earnings': total_earnings,
+            'average_rating': round(average_rating, 2),
+        }
+        return Response(data)
+
+class MonthlyPerformanceAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsTechnicianUser]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_authenticated or user.user_type.user_type_name != 'technician':
+            raise PermissionDenied("Only authenticated technicians can view monthly performance.")
+
+        today = timezone.now().date()
+        start_of_month = today.replace(day=1)
+        
+        # Get start and end of current month with proper timezone awareness
+        start_of_month_datetime = timezone.make_aware(
+            datetime.combine(start_of_month, datetime.min.time())
+        )
+        end_of_month_datetime = timezone.make_aware(
+            datetime.combine(
+                (today.replace(day=1) + timedelta(days=32)).replace(day=1) - timedelta(days=1),
+                datetime.max.time()
+            )
+        )
+
+        # Completed tasks this month
+        completed_tasks_month = Order.objects.filter(
+            technician_user=user,
+            order_status='completed',
+            job_completion_timestamp__gte=start_of_month_datetime,
+            job_completion_timestamp__lte=end_of_month_datetime
+        ).count()
+
+        # Earnings this month
+        earnings_month = Order.objects.filter(
+            technician_user=user,
+            order_status='completed',
+            job_completion_timestamp__gte=start_of_month_datetime,
+            job_completion_timestamp__lte=end_of_month_datetime
+        ).aggregate(
+            total=Sum('final_price')
+        )['total'] or 0.00
+
+        # Average rating this month - only reviews created in the current month
+        average_rating_month = Review.objects.filter(
+            technician=user,
+            created_at__gte=start_of_month_datetime,
+            created_at__lte=end_of_month_datetime
+        ).aggregate(
+            avg_rating=Avg('rating')
+        )['avg_rating'] or 0.00
+
+        data = {
+            'completed_tasks_month': completed_tasks_month,
+            'earnings_month': earnings_month,
+            'average_rating_month': round(average_rating_month, 2),
+        }
+        return Response(data)
+
+class WorkerReviewsAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsTechnicianUser]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_authenticated or user.user_type.user_type_name != 'technician':
+            raise PermissionDenied("Only authenticated technicians can view worker reviews.")
+
+        # Get reviews for this technician
+        reviews = Review.objects.filter(technician=user).order_by('-created_at')
+
+        # Calculate average rating
+        average_rating = reviews.aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0.00
+
+        # Paginate results
+        page_size = 10
+        page = int(request.GET.get('page', 1))
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        paginated_reviews = reviews[start:end]
+
+        from reviews.serializers import ReviewSerializer
+        serializer = ReviewSerializer(paginated_reviews, many=True)
+
+        data = {
+            'results': serializer.data,
+            'average_rating': round(average_rating, 2),
+            'count': reviews.count()
+        }
+        return Response(data)
 
 class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     """

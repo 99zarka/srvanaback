@@ -1,9 +1,15 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.pagination import PageNumberPagination
 from .models import IssueReport
 from .serializers import IssueReportSerializer
 from api.permissions import IsAdminUser, IsUserOwnerOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
+
+class IssueReportPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class IssueReportViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     """
@@ -42,10 +48,19 @@ class IssueReportViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Permissions: Authenticated User (reporter) or Admin User.
     Usage: DELETE /api/issue_reports/{id}/
     """
+    pagination_class = IssueReportPagination
     queryset = IssueReport.objects.all()
     serializer_class = IssueReportSerializer
-    permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
     owner_field = 'reporter'
+
+    def get_permissions(self):
+        if self.action == 'list':
+            # Only allow admin users to list all issue reports
+            self.permission_classes = [IsAdminUser]
+        else:
+            # For other actions, allow admin or owners
+            self.permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
+        return super().get_permissions()
 
     def get_filtered_queryset(self, user, base_queryset):
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
