@@ -62,8 +62,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
     'drf_yasg', # Added for API documentation
-    'filesupload', # New app for file uploads
-    'cloudinary_storage', # Add cloudinary_storage for Cloudinary integration
+    'filesupload' # New app for file uploads
 ]
 
 # Cloudinary Configuration
