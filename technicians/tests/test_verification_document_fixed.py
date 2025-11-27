@@ -121,39 +121,44 @@ class VerificationDocumentAPITests(TestCase):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Handle both paginated and non-paginated responses
+        # Handle pagination - check results count
         if isinstance(response.data, dict) and 'results' in response.data:
-            # Paginated response
-            docs = response.data['results']
-            result_count = len(docs)
+            self.assertEqual(len(response.data['results']), 1)
         else:
-            # Non-paginated response
-            docs = response.data
-            result_count = len(docs)
-        
-        # Technician sees only their own documents
-        self.assertEqual(result_count, 1)
-        self.assertEqual(len(docs), 1)
+            self.assertEqual(len(response.data), 1)
 
     def test_list_docs_admin(self):
-        client = self.get_auth_client(self.admin_user)
-        response = self.client.get(self.list_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Debug: Check how many documents exist before the test
+        total_docs = VerificationDocument.objects.count()
+        debug_info = f"Total documents before admin list test: {total_docs}\n"
         
-        # Handle both paginated and non-paginated responses
+        client = self.get_auth_client(self.admin_user)
+        response = client.get(self.list_url)
+        debug_info += f"Response status: {response.status_code}\n"
+        debug_info += f"Response data type: {type(response.data)}\n"
+        
+        # Handle pagination properly
         if isinstance(response.data, dict) and 'results' in response.data:
             # Paginated response
             docs = response.data['results']
+            debug_info += f"Paginated response - results count: {len(docs)}\n"
+            for i, doc in enumerate(docs):
+                debug_info += f"Document {i+1}: ID={doc.get('doc_id')}, Type={doc.get('document_type')}, Tech User={doc.get('technician_user')}\n"
             result_count = len(docs)
         else:
             # Non-paginated response
             docs = response.data
+            debug_info += f"Non-paginated response - count: {len(docs)}\n"
+            for i, doc in enumerate(docs):
+                debug_info += f"Document {i+1}: ID={doc.get('doc_id')}, Type={doc.get('document_type')}, Tech User={doc.get('technician_user')}\n"
             result_count = len(docs)
         
-        # Admin sees all documents
+        # Write debug info to file
+        with open('test_debug_output.txt', 'w') as f:
+            f.write(debug_info)
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(result_count, 2)
-        self.assertEqual(len(docs), 2)
 
     def test_retrieve_doc_unauthenticated(self):
         self.client.force_authenticate(user=None)

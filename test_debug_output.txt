@@ -1,0 +1,6 @@
+Total documents before admin list test: 2
+Response status: 200
+Response data type: <class 'dict'>
+Paginated response - results count: 2
+Document 1: ID=1, Type=ID, Tech User=2
+Document 2: ID=2, Type=Passport, Tech User=3

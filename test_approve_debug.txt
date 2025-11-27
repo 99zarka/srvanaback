@@ -1,0 +1,7 @@
+Test User: techuser
+User ID: 2
+User Type: technician
+Is Authenticated: True
+Approve URL: /api/technicians/verificationdocuments/1/approve/
+Response Status: 200
+Response Data: {'message': 'Verification document approved successfully', 'verification_document': {'doc_id': 1, 'document_type': 'ID', 'document_url': 'http://example.com/id.pdf', 'upload_date': '2025-11-26', 'verification_status': 'Approved', 'rejection_reason': None, 'technician_user': 2}, 'user_verification_status': 'Verified'}

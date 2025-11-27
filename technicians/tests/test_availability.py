@@ -132,7 +132,11 @@ class TechnicianAvailabilityAPITests(TestCase):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) # Client can see all availability
+        # Handle pagination
+        if 'results' in response.data:
+            self.assertEqual(len(response.data['results']), 2) # Client can see all availability
+        else:
+            self.assertEqual(len(response.data), 2)
 
     def test_client_retrieve_availability(self):
         client = self.get_auth_client(self.client_user)
@@ -163,8 +167,13 @@ class TechnicianAvailabilityAPITests(TestCase):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Technician sees their own availability
-        self.assertEqual(response.data[0]['day_of_week'], 'Monday')
+        # Handle pagination
+        if 'results' in response.data:
+            self.assertEqual(len(response.data['results']), 1) # Technician sees their own availability
+            self.assertEqual(response.data['results'][0]['day_of_week'], 'Monday')
+        else:
+            self.assertEqual(len(response.data), 1) 
+            self.assertEqual(response.data[0]['day_of_week'], 'Monday')
 
     def test_technician_retrieve_own_availability(self):
         client = self.get_auth_client(self.technician_user)
@@ -214,7 +223,11 @@ class TechnicianAvailabilityAPITests(TestCase):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) # Admin sees all availability
+        # Handle pagination
+        if 'results' in response.data:
+            self.assertEqual(len(response.data['results']), 2) # Admin sees all availability
+        else:
+            self.assertEqual(len(response.data), 2)
 
     def test_admin_retrieve_any_availability(self):
         client = self.get_auth_client(self.admin_user)

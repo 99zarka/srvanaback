@@ -64,6 +64,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     verification_status = models.CharField(max_length=255, null=True, blank=True)
     username = models.CharField(max_length=255, unique=True, null=True, blank=True)
     access_level = models.CharField(max_length=255, null=True, blank=True)
+    
+    # Technician specific fields
+    specialization = models.CharField(max_length=255, null=True, blank=True)
+    skills_text = models.TextField(null=True, blank=True) # Renamed from skills to avoid conflict with TechnicianSkill reverse relation
+    experience_years = models.IntegerField(null=True, blank=True)
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

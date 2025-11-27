@@ -120,7 +120,7 @@ class NotificationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         base_queryset = super().get_queryset() # Get the initial queryset from the next class in MRO (e.g., ModelViewSet)
 
         if user.is_authenticated and user.user_type.user_type_name == 'admin':
-            return base_queryset # Admin sees all
+            return base_queryset.filter(user=user) # Admin sees only their own notifications
         elif user.is_authenticated:
             # Authenticated non-admin users get filtered for all actions (list, retrieve, update, destroy)
             # If an object is not in their filtered queryset, it will result in a 404.
