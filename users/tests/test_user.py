@@ -33,14 +33,25 @@ class UserAPITests(TestCase):
             is_superuser=True
         )
 
-        self.list_url = reverse('user-list')
-        self.detail_url = reverse('user-detail', args=[self.client_user.user_id])
-        self.other_detail_url = reverse('user-detail', args=[self.other_client_user.user_id])
+        self.list_url = reverse('users:user-list')
+        self.detail_url = reverse('users:user-detail', args=[self.client_user.user_id])
+        self.other_detail_url = reverse('users:user-detail', args=[self.other_client_user.user_id])
 
     def get_auth_client(self, user):
         token = str(RefreshToken.for_user(user).access_token)
         self.client.credentials(HTTP_AUTHORIZATION='Bearer ' + token)
         return self.client
+
+    def test_user_balance_defaults(self):
+        user = User.objects.create_user(
+            username='newbalancetest',
+            email='balancetest@example.com',
+            password='password123',
+            user_type_name=self.client_usertype.user_type_name
+        )
+        self.assertEqual(user.available_balance, 0.00)
+        self.assertEqual(user.in_escrow_balance, 0.00)
+        self.assertEqual(user.pending_balance, 0.00)
 
     def test_list_users_unauthenticated(self):
         self.client.force_authenticate(user=None)
@@ -51,13 +62,13 @@ class UserAPITests(TestCase):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Should only see self
+        self.assertEqual(response.data['count'], 3) # Should see all users as per get_filtered_queryset
 
     def test_list_users_admin(self):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3) # Admin sees all
+        self.assertEqual(response.data['count'], 3) # Admin sees all
 
     def test_retrieve_user_unauthenticated(self):
         self.client.force_authenticate(user=None)
@@ -69,6 +80,10 @@ class UserAPITests(TestCase):
         response = client.get(self.detail_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], self.client_user.email)
+        self.assertEqual(float(response.data['available_balance']), float(self.client_user.available_balance))
+        self.assertEqual(float(response.data['in_escrow_balance']), float(self.client_user.in_escrow_balance))
+        self.assertEqual(float(response.data['pending_balance']), float(self.client_user.pending_balance))
+
 
     def test_retrieve_other_user_client_forbidden(self):
         client = self.get_auth_client(self.client_user)
@@ -91,6 +106,21 @@ class UserAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.client_user.refresh_from_db()
         self.assertEqual(self.client_user.first_name, 'Updated')
+    
+    def test_client_cannot_update_balance_fields(self):
+        client = self.get_auth_client(self.client_user)
+        # Attempt to update balance fields
+        response = client.patch(self.detail_url, {
+            'available_balance': 1000.00,
+            'in_escrow_balance': 500.00,
+            'pending_balance': 200.00
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK) # Update will succeed for other fields
+        self.client_user.refresh_from_db()
+        # Verify balances did NOT change from their initial 0.00
+        self.assertEqual(self.client_user.available_balance, 0.00)
+        self.assertEqual(self.client_user.in_escrow_balance, 0.00)
+        self.assertEqual(self.client_user.pending_balance, 0.00)
 
     def test_update_other_user_client_forbidden(self):
         client = self.get_auth_client(self.client_user)
@@ -103,6 +133,19 @@ class UserAPITests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.client_user.refresh_from_db()
         self.assertEqual(self.client_user.first_name, 'AdminUpdate')
+    
+    def test_admin_can_update_balance_fields(self):
+        client = self.get_auth_client(self.admin_user)
+        response = client.patch(self.detail_url, {
+            'available_balance': 1000.00,
+            'in_escrow_balance': 500.00,
+            'pending_balance': 200.00
+        }, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.client_user.refresh_from_db()
+        self.assertEqual(self.client_user.available_balance, 1000.00)
+        self.assertEqual(self.client_user.in_escrow_balance, 500.00)
+        self.assertEqual(self.client_user.pending_balance, 200.00)
 
     def test_delete_user_unauthenticated(self):
         self.client.force_authenticate(user=None)

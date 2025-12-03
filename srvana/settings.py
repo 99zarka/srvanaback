@@ -58,6 +58,7 @@ INSTALLED_APPS = [
      'reviews',
      'issue_reports',
      'transactions',
+     'disputes', # New app for dispute management
      'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
@@ -246,7 +247,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
         },
-        'CONN_MAX_AGE': 600,
+        'CONN_MAX_AGE': 0,  # Disable persistent connections to reduce open connections
     }
 }
 

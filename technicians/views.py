@@ -57,7 +57,7 @@ class TechnicianAvailabilityViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelVi
     Permissions: Authenticated Technician User (owner) or Admin User.
     Usage: DELETE /api/technicians/availability/{id}/
     """
-    queryset = TechnicianAvailability.objects.all()
+    queryset = TechnicianAvailability.objects.all().order_by('availability_id')
     serializer_class = TechnicianAvailabilitySerializer
     owner_field = 'technician_user' # Set owner_field for OwnerFilteredQuerysetMixin
 
@@ -130,7 +130,7 @@ class TechnicianSkillViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Permissions: Authenticated Technician User (owner) or Admin User.
     Usage: DELETE /api/technicians/skills/{id}/
     """
-    queryset = TechnicianSkill.objects.all()
+    queryset = TechnicianSkill.objects.all().order_by('technician_user__user_id')
     serializer_class = TechnicianSkillSerializer
     owner_field = 'technician_user'
 
@@ -398,7 +398,7 @@ class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelView
 
     retrieve:
     Return a specific verification document by ID.
-    Permissions: Authenticated Technician User (owner) or Admin User.
+    Permissions: Authenticated Technician User (owner), Authenticated Client User, or Admin User.
     Usage: GET /api/technicians/verification_documents/{id}/
 
     create:
@@ -422,7 +422,7 @@ class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelView
     Permissions: Authenticated Technician User (owner) or Admin User.
     Usage: DELETE /api/technicians/verification_documents/{id}/
     """
-    queryset = VerificationDocument.objects.all()
+    queryset = VerificationDocument.objects.all().order_by('doc_id')
     serializer_class = VerificationDocumentSerializer
     owner_field = 'technician_user'
 
@@ -572,7 +572,18 @@ class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelView
         if user.user_type.user_type_name in ['technician', 'client']:
             serializer.save(technician_user=user)
         elif user.user_type.user_type_name == 'admin':
-            serializer.save()
+            # For admin, technician_user should be provided in the request data for this path
+            technician_user_id = self.request.data.get('technician_user')
+            if technician_user_id:
+                try:
+                    technician_user = User.objects.get(user_id=technician_user_id)
+                    serializer.save(technician_user=technician_user)
+                except User.DoesNotExist:
+                    raise serializers.ValidationError({"technician_user": "User not found."})
+            else:
+                raise serializers.ValidationError({"technician_user": "This field is required for admin users."})
+        else:
+            raise PermissionDenied("Only clients, technicians and admins can create verification documents via perform_create.")
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def approve(self, request, pk=None):

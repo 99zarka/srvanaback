@@ -74,26 +74,26 @@ class TransactionTests(APITestCase):
         )
 
         self.transaction = Transaction.objects.create(
-            user=self.client_user,
+            source_user=self.client_user,
+            destination_user=self.client_user, # Assuming internal transfer or deposit for existing test
             order=self.order,
             amount=100.00,
-            transaction_type='payment',
-            status='completed'
+            transaction_type='DEPOSIT', # Changed from 'payment' and 'completed'
         )
         self.other_transaction = Transaction.objects.create(
-            user=self.other_client_user,
+            source_user=self.other_client_user,
+            destination_user=self.other_client_user, # Assuming internal transfer or deposit for existing test
             order=self.other_order,
             amount=150.00,
-            transaction_type='payment',
-            status='completed'
+            transaction_type='DEPOSIT', # Changed from 'payment' and 'completed'
         )
 
         self.transaction_data = {
-            'user': self.client_user.user_id,
             'order': self.order.order_id,
             'amount': 200.00,
-            'transaction_type': 'payment',
-            'status': 'pending'
+            'transaction_type': 'FEE', # Changed from 'service_fee' and 'pending'
+            'source_user': self.client_user.user_id,
+            'destination_user': self.technician_user.user_id,
         }
 
         self.list_url = reverse('transaction-list')
@@ -115,11 +115,19 @@ class TransactionTests(APITestCase):
         response = client.post(self.list_url, self.transaction_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Transaction.objects.count(), 3)
+        # Verify that source_user and destination_user are correctly set by the perform_create method
+        created_transaction = Transaction.objects.get(pk=response.data['id'])
+        self.assertEqual(created_transaction.source_user, self.client_user)
+        self.assertEqual(created_transaction.destination_user, self.technician_user)
 
     def test_create_transaction_admin(self):
         client = self.get_auth_client(self.admin_user)
         response = client.post(self.list_url, self.transaction_data, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # For admin creating a transaction, it should use the provided source_user and destination_user
+        created_transaction = Transaction.objects.get(pk=response.data['id'])
+        self.assertEqual(created_transaction.source_user, self.client_user)
+        self.assertEqual(created_transaction.destination_user, self.technician_user)
 
     def test_list_transactions_unauthenticated(self):
         self.client.force_authenticate(user=None)
@@ -130,13 +138,29 @@ class TransactionTests(APITestCase):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Only own transactions
+        self.assertEqual(response.data['count'], 1) # Client user is source and destination for self.transaction
+        self.assertTrue(any(t['id'] == self.transaction.id for t in response.data['results']))
+        self.assertFalse(any(t['id'] == self.other_transaction.id for t in response.data['results'])) # Should not see other client's transactions
+        # Verify transaction where client is destination
+        deposit_to_client = Transaction.objects.create(
+            source_user=self.technician_user,
+            destination_user=self.client_user,
+            order=self.order,
+            amount=50.00,
+            transaction_type='ESCROW_RELEASE',
+        )
+        response = client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 2) # Original + the new one where client is destination
+        self.assertTrue(any(t['id'] == deposit_to_client.id for t in response.data['results']))
 
     def test_list_transactions_admin(self):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) # Admin sees all
+        self.assertEqual(response.data['count'], 2) # Admin sees all (initial 2)
+        self.assertTrue(any(t['id'] == self.transaction.id for t in response.data['results']))
+        self.assertTrue(any(t['id'] == self.other_transaction.id for t in response.data['results']))
 
     def test_retrieve_transaction_unauthenticated(self):
         self.client.force_authenticate(user=None)
@@ -166,22 +190,22 @@ class TransactionTests(APITestCase):
 
     def test_update_own_transaction_client(self):
         client = self.get_auth_client(self.client_user)
-        response = client.patch(self.detail_url, {'status': 'cancelled'}, format='json')
+        response = client.patch(self.detail_url, {'transaction_type': 'WITHDRAWAL'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.transaction.refresh_from_db()
-        self.assertEqual(self.transaction.status, 'cancelled')
+        self.assertEqual(self.transaction.transaction_type, 'WITHDRAWAL')
 
     def test_update_other_transaction_client_forbidden(self):
         client = self.get_auth_client(self.client_user)
-        response = client.patch(self.other_detail_url, {'status': 'failed'}, format='json')
+        response = client.patch(self.other_detail_url, {'transaction_type': 'WITHDRAWAL'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_update_transaction_admin(self):
         client = self.get_auth_client(self.admin_user)
-        response = client.patch(self.detail_url, {'status': 'failed'}, format='json')
+        response = client.patch(self.detail_url, {'transaction_type': 'FEE'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.transaction.refresh_from_db()
-        self.assertEqual(self.transaction.status, 'failed')
+        self.assertEqual(self.transaction.transaction_type, 'FEE')
 
     def test_delete_transaction_unauthenticated(self):
         self.client.force_authenticate(user=None)

@@ -341,14 +341,14 @@ class DashboardEndpointsTests(APITestCase):
 
     def test_client_orders_list_authenticated_client(self):
         client = self.get_auth_client(self.client_user)
-        url = reverse('order-list') # Assuming a generic order list endpoint for clients
+        url = reverse('orders:order-list') # Assuming a generic order list endpoint for clients
         response = client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 4) # Client_user has 4 orders
 
     def test_client_orders_list_authenticated_technician_forbidden(self):
         client = self.get_auth_client(self.technician_user)
-        url = reverse('order-list')
+        url = reverse('orders:order-list')
         response = client.get(url)
         # Technician should not see all orders, but only their own related orders or none.
         # This assumes the 'order-list' endpoint has appropriate permissions.
@@ -360,7 +360,7 @@ class DashboardEndpointsTests(APITestCase):
 
     def test_client_orders_list_unauthenticated(self):
         self.client.force_authenticate(user=None)
-        url = reverse('order-list')
+        url = reverse('orders:order-list')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 

@@ -16,10 +16,6 @@ class ClientSummaryAPIView(APIView):
 
     def get(self, request, *args, **kwargs):
         client_user = request.user
-        if not client_user.user_type.user_type_name in ['client', 'technician']:
-            return Response({"detail": "You are not authorized to view client summary."},
-                            status=status.HTTP_403_FORBIDDEN)
-
         # Active Orders (pending or in progress)
         active_orders_count = Order.objects.filter(
             client_user=client_user,

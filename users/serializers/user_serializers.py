@@ -15,20 +15,37 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = '__all__'
         extra_kwargs = {'password': {'write_only': True, 'required': False}}
-        read_only_fields = ('groups', 'user_permissions', 'is_staff', 'is_superuser', 'is_active', 'last_login')
+        read_only_fields = ('groups', 'user_permissions', 'is_staff', 'is_superuser', 'is_active', 'last_login', 'available_balance', 'in_escrow_balance', 'pending_balance')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request', None)
+        if request and request.user.is_authenticated and request.user.is_superuser:
+            # Allow superusers to update balance fields
+            for field_name in ['available_balance', 'in_escrow_balance', 'pending_balance']:
+                if field_name in self.fields:
+                    self.fields[field_name].read_only = False
+
 
 class PublicUserSerializer(serializers.ModelSerializer):
     profile_photo = CloudinaryImageField(required=False, allow_null=True)
     user_type = serializers.StringRelatedField(source='user_type.user_type_name') # Display user type name
+    overall_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = (
-            'user_id', 'first_name', 'last_name', 'username', 'bio', 'profile_photo',
+            'user_id', 'first_name', 'last_name', 'username', 'bio', 'profile_photo', 'specialization',
             'user_type', 'overall_rating', 'num_jobs_completed', 'average_response_time', 'address',
             'registration_date', 'account_status', 'verification_status', 'access_level'
         )
         read_only_fields = fields # All fields are read-only for public view
+
+    def get_overall_rating(self, obj):
+        # Ensure rating is returned as float, not string
+        if obj.overall_rating is not None:
+            return float(obj.overall_rating)
+        return None
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):

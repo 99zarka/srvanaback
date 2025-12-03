@@ -180,8 +180,8 @@ class ReviewTests(APITestCase):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Only reviews where client_user is reviewer or related to their order
-        self.assertEqual(response.data[0]['rating'], 4)
+        self.assertEqual(len(response.data['results']), 1) # Only reviews where client_user is reviewer or related to their order
+        self.assertEqual(response.data['results'][0]['rating'], 4)
 
     def test_client_retrieve_own_review(self):
         client = self.get_auth_client(self.client_user)
@@ -288,9 +288,9 @@ class ReviewTests(APITestCase):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) # One review received, one review made
+        self.assertEqual(len(response.data['results']), 2) # One review received, one review made
         # Check if both types of reviews are present
-        ratings = [review['rating'] for review in response.data]
+        ratings = [review['rating'] for review in response.data['results']]
         self.assertIn(4, ratings) # Review received (review_client_tech)
         self.assertIn(3, ratings) # Review made by technician_user
 
@@ -389,7 +389,7 @@ class ReviewTests(APITestCase):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) # Admin sees all reviews
+        self.assertEqual(len(response.data['results']), 2) # Admin sees all reviews
 
     def test_admin_retrieve_any_review(self):
         client = self.get_auth_client(self.admin_user)

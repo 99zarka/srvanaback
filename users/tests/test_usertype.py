@@ -35,8 +35,8 @@ class UserTypeAPITests(TestCase):
         self.usertype_data = {"user_type_name": "TestUserType"}
         self.updated_usertype_data = {"user_type_name": "UpdatedTestUserType"}
 
-        self.list_url = reverse('usertype-list')
-        self.detail_url = reverse('usertype-detail', args=[self.client_usertype.user_type_id])
+        self.list_url = reverse('users:usertype-list')
+        self.detail_url = reverse('users:usertype-detail', args=[self.client_usertype.user_type_id])
 
     def get_auth_client(self, user):
         token = str(RefreshToken.for_user(user).access_token)
@@ -68,8 +68,8 @@ class UserTypeAPITests(TestCase):
         # No authentication needed for list view as it's public
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3)
-
+        self.assertEqual(response.data['count'], 3) # Corrected expected count to use .count
+        
     def test_retrieve_usertype(self):
         # No authentication needed for retrieve view as it's public
         response = self.client.get(self.detail_url)

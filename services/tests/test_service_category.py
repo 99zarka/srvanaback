@@ -48,12 +48,12 @@ class ServiceCategoryAPITests(TestCase):
         self.category_data = {
             "category_name": "NewCategory",
             "description": "Description for NewCategory",
-            "icon_url": "http://example.com/new_icon.png"
+            # # "icon_url": "http://example.com/new_icon.pn # Removed for testing ImageFieldg" # Removed for testing ImageField
         }
         self.updated_category_data = {
             "category_name": "UpdatedTestCategory",
             "description": "Updated description for TestCategory",
-            "icon_url": "http://example.com/updated_icon.png"
+            # "icon_url": "http://example.com/updated_icon.png" # Removed for testing ImageField
         }
 
         self.list_url = reverse('servicecategory-list')
@@ -75,7 +75,7 @@ class ServiceCategoryAPITests(TestCase):
         self.client.force_authenticate(user=None)
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK) # Publicly accessible
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_unauthenticated_retrieve_servicecategory(self):
         self.client.force_authenticate(user=None)
@@ -102,7 +102,7 @@ class ServiceCategoryAPITests(TestCase):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_client_retrieve_servicecategory(self):
         client = self.get_auth_client(self.client_user)
@@ -131,7 +131,7 @@ class ServiceCategoryAPITests(TestCase):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_technician_retrieve_servicecategory(self):
         client = self.get_auth_client(self.technician_user)
@@ -162,7 +162,7 @@ class ServiceCategoryAPITests(TestCase):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_admin_retrieve_servicecategory(self):
         client = self.get_auth_client(self.admin_user)

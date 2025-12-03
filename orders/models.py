@@ -14,27 +14,28 @@ class Order(models.Model):
     scheduled_date = models.DateField(null=False, blank=False)
     scheduled_time_start = models.CharField(max_length=255, null=False, blank=False)
     scheduled_time_end = models.CharField(max_length=255, null=False, blank=False)
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('accepted', 'Accepted'),
-        ('in_progress', 'In Progress'),
-        ('completed', 'Completed'),
-        ('cancelled', 'Cancelled'),
-        ('rejected', 'Rejected'),
-        ('on_hold', 'On Hold'),
-        ('awaiting_payment', 'Awaiting Payment'),
-        ('disputed', 'Disputed'),
+    ORDER_STATUS_CHOICES = [
+        ('OPEN', 'Open'),
+        ('ACCEPTED', 'Accepted'),
+        ('IN_PROGRESS', 'In Progress'),
+        ('AWAITING_RELEASE', 'Awaiting Release'),
+        ('COMPLETED', 'Completed'),
+        ('DISPUTED', 'Disputed'),
+        ('CANCELLED', 'Cancelled'),
+        ('REFUNDED', 'Refunded'),
     ]
-    order_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    order_status = models.CharField(max_length=50, choices=ORDER_STATUS_CHOICES, default='OPEN')
     initial_observations = models.TextField(blank=True, null=True)
     updated_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     updated_schedule_date = models.DateField(null=True, blank=True)
     updated_schedule_time_start = models.CharField(max_length=255, null=True, blank=True)
     updated_schedule_time_end = models.CharField(max_length=255, null=True, blank=True)
     proposal_notes = models.TextField(blank=True, null=True)
-    creation_timestamp = models.DateField(null=False, blank=False)
-    job_start_timestamp = models.DateField(null=True, blank=True)
-    job_completion_timestamp = models.DateField(null=True, blank=True)
+    creation_timestamp = models.DateField(auto_now_add=True)
+    job_start_timestamp = models.DateTimeField(null=True, blank=True)
+    job_completion_timestamp = models.DateTimeField(null=True, blank=True) # When client releases funds or auto-release
+    job_done_timestamp = models.DateTimeField(null=True, blank=True) # When technician marks job as done
+    auto_release_date = models.DateTimeField(null=True, blank=True) # For automatic fund release
     final_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     commission_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     platform_commission_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -91,6 +92,11 @@ class ProjectOffer(models.Model):
     offer_description = models.TextField(null=True, blank=True)
     offer_date = models.DateField(null=False, blank=False)
     status = models.CharField(max_length=255, null=False, blank=False) # e.g., 'pending', 'accepted', 'rejected'
+    OFFER_INITIATOR_CHOICES = [
+        ('client', 'Client'),
+        ('technician', 'Technician'),
+    ]
+    offer_initiator = models.CharField(max_length=20, choices=OFFER_INITIATOR_CHOICES, null=False, blank=False, default='technician')
 
     class Meta:
         db_table = 'PROJECT_OFFER'

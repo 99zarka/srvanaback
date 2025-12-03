@@ -31,7 +31,6 @@ urlpatterns = [
     
     # Existing endpoints that tests expect
     path('reviews/', ReviewViewSet.as_view({'get': 'list'}), name='review-list'),
-    path('orders/', OrderViewSet.as_view({'get': 'list'}), name='order-list'),
     path('payments/', PaymentViewSet.as_view({'get': 'list'}), name='payment-list'),
     path('services/', ServiceViewSet.as_view({'get': 'list'}), name='service-list'),
     path('issue-reports/', IssueReportViewSet.as_view({'get': 'list'}), name='issuereport-list'),

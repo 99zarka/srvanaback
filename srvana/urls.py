@@ -41,7 +41,7 @@ urlpatterns = [
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('admin/', admin.site.urls),
-    path('api/users/', include('users.urls')),
+    path('api/users/', include('users.urls', namespace='users')),
     path('api/', include('api.urls')),
     path('api/services/', include('services.urls')),
     path('api/orders/', include('orders.urls')),
@@ -56,5 +56,6 @@ urlpatterns = [
     path('api/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'), # Use your custom view here
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api-auth/', include('rest_framework.urls')),
+    path('api/disputes/', include('disputes.urls')),
     path('api/files/', include('filesupload.urls')), # Include filesupload app URLs
 ]

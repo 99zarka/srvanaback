@@ -22,11 +22,14 @@ class CustomUserManager(BaseUserManager):
         if 'username' in extra_fields and extra_fields['username'] == '':
             extra_fields['username'] = None
 
-        user_type_name = extra_fields.pop('user_type_name', 'client')
-        try:
-            user_type_obj = UserType.objects.get(user_type_name=user_type_name)
-        except UserType.DoesNotExist:
-            user_type_obj = UserType.objects.create(user_type_name=user_type_name)
+        # Determine user_type: prioritize direct object, then user_type_name string, then default
+        user_type_obj = extra_fields.pop('user_type', None) # Pop UserType object if directly provided
+        if not user_type_obj:
+            user_type_name = extra_fields.pop('user_type_name', 'client')
+            try:
+                user_type_obj = UserType.objects.get(user_type_name=user_type_name)
+            except UserType.DoesNotExist:
+                user_type_obj = UserType.objects.create(user_type_name=user_type_name)
 
         user = self.model(email=email, user_type=user_type_obj, **extra_fields)
         user.set_password(password)
@@ -64,6 +67,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     verification_status = models.CharField(max_length=255, null=True, blank=True)
     username = models.CharField(max_length=255, unique=True, null=True, blank=True)
     access_level = models.CharField(max_length=255, null=True, blank=True)
+
+    # Balance fields
+    available_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    in_escrow_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    pending_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
     # Technician specific fields
     specialization = models.CharField(max_length=255, null=True, blank=True)

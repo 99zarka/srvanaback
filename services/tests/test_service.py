@@ -93,7 +93,7 @@ class ServiceAPITests(TestCase):
         self.client.force_authenticate(user=None)
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK) # Publicly accessible
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_unauthenticated_retrieve_service(self):
         self.client.force_authenticate(user=None)
@@ -120,7 +120,7 @@ class ServiceAPITests(TestCase):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_client_retrieve_service(self):
         client = self.get_auth_client(self.client_user)
@@ -149,7 +149,7 @@ class ServiceAPITests(TestCase):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_technician_retrieve_service(self):
         client = self.get_auth_client(self.technician_user)
@@ -180,7 +180,7 @@ class ServiceAPITests(TestCase):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(len(response.data['results']), 2)
 
     def test_admin_retrieve_service(self):
         client = self.get_auth_client(self.admin_user)

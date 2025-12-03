@@ -88,7 +88,7 @@ class NotificationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Usage: GET /api/notifications/{id}/
 
     create:
-    Create a new notification. The authenticated user will be set as the recipient.
+    Create a new notification. The authenticated user will be set as the user.
     Permissions: Authenticated User or Admin User.
     Usage: POST /api/notifications/
     Body: {"message": "Your order has been updated.", "notification_type": "order_update"}

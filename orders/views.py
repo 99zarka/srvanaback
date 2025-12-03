@@ -1,10 +1,20 @@
-from rest_framework import viewsets, permissions, serializers
+from rest_framework import viewsets, permissions, serializers, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db import transaction as db_transaction # Import for atomic operations
 from .models import Order, ProjectOffer
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from .serializers import OrderSerializer, ProjectOfferSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsClientOwnerOrAdmin, IsTechnicianOwnerOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
+from notifications.models import Notification # Keep this for now, will replace usage with utils
+from notifications.utils import create_notification # Import the helper function
+from users.models import User # Needed for notifying all technicians and for balance updates
+from transactions.models import Transaction # Import Transaction model for escrow operations
+from disputes.models import Dispute # Import Dispute model
+from datetime import date, datetime, timedelta # Import datetime and timedelta for auto-release
+from decimal import Decimal # Import Decimal
 
 class OrderPagination(PageNumberPagination):
     page_size = 10
@@ -29,7 +39,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     Create a new order.
     Permissions: Authenticated User.
     Usage: POST /api/orders/
-    Body: {"service": 1, "client_user": 1, "description": "Fix leaky faucet", "scheduled_date": "2025-12-01T10:00:00Z"}
+    Body: {"service": 1, "description": "Fix leaky faucet", "scheduled_date": "2025-12-01T10:00:00Z"}
 
     update:
     Update an existing order.
@@ -47,6 +57,21 @@ class OrderViewSet(viewsets.ModelViewSet):
     Delete an order.
     Permissions: Authenticated User (client/technician owner) or Admin User.
     Usage: DELETE /api/orders/{order_id}/
+
+    available_for_offer:
+    Return a list of orders available for technician offers (orders without assigned technician).
+    Permissions: Authenticated Technician User.
+    Usage: GET /api/orders/available-for-offer/
+
+    offers:
+    Return a list of project offers for a specific order.
+    Permissions: Authenticated Client User (owner of order) or Admin User.
+    Usage: GET /api/orders/{order_id}/offers/
+
+    accept_offer:
+    Accept a specific project offer for an order.
+    Permissions: Authenticated Client User (owner of order) or Admin User.
+    Usage: POST /api/orders/{order_id}/accept-offer/{offer_id}/
     """
     pagination_class = OrderPagination
     queryset = Order.objects.all()
@@ -55,32 +80,584 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'create':
-            self.permission_classes = [permissions.IsAuthenticated]
+            self.permission_classes = [IsClientUser] # Only ClientUser can create
         elif self.action == 'list':
             # For list, only allow clients and admins. Technicians should not see generic order list
             self.permission_classes = [IsAdminUser | IsClientUser]
         elif self.action in ['update', 'partial_update', 'destroy']:
+            self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
+        elif self.action == 'available_for_offer':
+            self.permission_classes = [IsTechnicianUser]
+        elif self.action in ['accept_offer', 'decline_offer', 'release_funds', 'initiate_dispute', 'cancel_order']:
+            # Actions primarily for the client owner or admin
+            self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin]
+        elif self.action == 'offers':
+            # Offers can be viewed by client owner, assigned technician, or admin
             self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
-        else: # retrieve
-            self.permission_classes = [IsAdminUser | IsClientUser | IsTechnicianUser]
+        elif self.action == 'mark_job_done':
+            # Action strictly for the assigned technician or admin
+            self.permission_classes = [IsAdminUser | IsTechnicianOwnerOrAdmin]
+        elif self.action == 'retrieve': # Explicitly handle retrieve
+             self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
+        else: # Fallback for any other action
+            self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | IsClientUser | IsTechnicianUser]
         return [permission() for permission in self.permission_classes]
 
     def get_queryset(self):
         user = self.request.user
+
+        # For detail views (retrieve, update, destroy, and custom actions like accept_offer, mark_job_done, etc.)
+        # always return the full queryset. Permissions will then handle whether the user can actually access/modify it.
+        if self.detail or self.action in ['accept_offer', 'decline_offer', 'mark_job_done', 'release_funds', 'initiate_dispute', 'cancel_order', 'offers']:
+            return Order.objects.all()
+
+        # For list actions, apply specific filtering based on user role
         if not user.is_authenticated:
-            return Order.objects.none() # No orders for unauthenticated users
+            return Order.objects.none() # Unauthenticated users see no orders in generic list
 
         if user.user_type.user_type_name == 'admin':
             return Order.objects.all()
         elif user.user_type.user_type_name == 'client':
             return Order.objects.filter(client_user=user)
         elif user.user_type.user_type_name == 'technician':
-            # Technicians can only see orders they're assigned to, not a generic list
-            # For list action, return empty queryset to enforce permission restrictions
+            # Technicians should not see generic order list (handled by get_permissions for 'list' action to deny)
+            # For generic 'list' action for technicians, return no orders.
             if self.action == 'list':
                 return Order.objects.none()
-            return Order.objects.filter(technician_user=user)
-        return Order.objects.none() # Should not be reached if user_type is handled
+            # For other detail-like actions or custom actions specific to assigned technician, filter by assigned orders.
+            return Order.objects.filter(technician_user=user) 
+
+        return Order.objects.none() # Default fallback, should not be reached with proper user type handling
+
+    def perform_create(self, serializer):
+        """Automatically set client_user to the authenticated user on create."""
+        user = self.request.user
+        
+        # Create the order with the client_user set to the authenticated user
+        order = serializer.save(client_user=user)
+        
+        # 1. Notify client (confirmation)
+        with db_transaction.atomic():
+            create_notification(
+                user=user,
+                notification_type='order_created',
+                title='Order Created Successfully',
+                message=f'Your order #{order.order_id} has been created and is awaiting offers.',
+                related_order=order
+            )
+        
+        # 2. Notify all technicians (new project available) - can be refined later
+        technicians = User.objects.filter(user_type__user_type_name='technician')
+        for tech_user in technicians:
+            create_notification(
+                user=tech_user,
+                notification_type='new_project_available',
+                title='New Project Available',
+                message=f'A new project (#{order.order_id}) has been posted that might interest you!',
+                related_order=order
+            )
+
+    @action(detail=False, methods=['get'], permission_classes=[IsTechnicianUser])
+    def available_for_offer(self, request):
+        """
+        Return orders that are available for technician offers.
+        These are orders without an assigned technician and with status 'OPEN'.
+        """
+        user = request.user
+        if not user.is_authenticated or user.user_type.user_type_name != 'technician':
+            raise PermissionDenied("Only technicians can view available orders.")
+
+        # Get orders without assigned technician and in OPEN status
+        available_orders = Order.objects.filter(
+            technician_user__isnull=True,
+            order_status='OPEN'
+        ).order_by('-creation_timestamp')
+
+        # Apply pagination
+        page = self.paginate_queryset(available_orders)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(available_orders, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def offers(self, request, order_id=None):
+        """
+        Return all project offers for a specific order.
+        Only accessible by the client who owns the order, assigned technician, or admin.
+        """
+        try:
+            order = self.get_object() 
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Check if user owns this order, is the assigned technician, or is admin
+        if not (order.client_user == request.user or \
+                (order.technician_user == request.user and request.user.user_type.user_type_name == 'technician') or \
+                request.user.user_type.user_type_name == 'admin'):
+            raise PermissionDenied("You can only view offers for your own orders or assigned tasks.")
+
+        offers = ProjectOffer.objects.filter(order=order).order_by('-offer_date', '-offer_id')
+        
+        # Apply pagination
+        page = self.paginate_queryset(offers)
+        if page is not None:
+            serializer = ProjectOfferSerializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+
+        serializer = ProjectOfferSerializer(offers, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin])
+    def accept_offer(self, request, order_id=None, offer_id=None):
+        """
+        Accept a specific project offer for an order.
+        This will assign the technician to the order and update offer statuses.
+        """
+        try:
+            order = self.get_object() 
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Check if user owns this order or is admin (already handled by permission_classes)
+
+        # Ensure the order is in a state where an offer can be accepted
+        if order.order_status != 'OPEN': # Ensure status is uppercase
+            raise ValidationError({'detail': f'Order is not in a state to accept offers. Current status: {order.order_status}'})
+
+        # Get the offer to accept
+        try:
+            offer_to_accept = ProjectOffer.objects.get(offer_id=offer_id, order=order)
+        except ProjectOffer.DoesNotExist:
+            raise NotFound("Offer not found for this order.")
+
+        # Ensure the offer is pending
+        if offer_to_accept.status != 'pending':
+            raise ValidationError({'detail': 'Only pending offers can be accepted.'})
+
+        client_user = order.client_user
+        technician_user = offer_to_accept.technician_user
+        offered_price = offer_to_accept.offered_price
+
+        # Implement atomic transaction for escrow
+        with db_transaction.atomic():
+            client_user.refresh_from_db() # Lock client user row
+            technician_user.refresh_from_db() # Lock technician user row
+
+            # Check if client has sufficient funds
+            if client_user.available_balance < offered_price:
+                raise ValidationError({'detail': 'Insufficient available balance to accept this offer.'})
+
+            # Move funds from client's available balance to in_escrow_balance
+            client_user.available_balance -= offered_price
+            client_user.in_escrow_balance += offered_price
+            client_user.save(update_fields=['available_balance', 'in_escrow_balance'])
+
+            # Create an escrow hold transaction
+            Transaction.objects.create(
+                source_user=client_user,
+                destination_user=technician_user,
+                order=order,
+                transaction_type='ESCROW_HOLD',
+                amount=offered_price,
+                currency='USD',
+                payment_method='Available Balance'
+            )
+
+            # Update the order
+            order.technician_user = technician_user
+            order.order_status = 'ACCEPTED' # Funds are now in escrow, job is accepted (Ensuring uppercase)
+            order.final_price = offered_price # Set final price
+            order.job_start_timestamp = datetime.now() # Mark job start
+            # Set auto_release_date (e.g., 7 days from now)
+            order.auto_release_date = datetime.now() + timedelta(days=7) # Example: 7 days for client to respond
+            order.save()
+
+            # Update offer statuses
+            ProjectOffer.objects.filter(order=order).exclude(offer_id=offer_to_accept.offer_id).update(status='rejected')
+            offer_to_accept.status = 'accepted'
+            offer_to_accept.save()
+
+            # Send notifications
+            self._send_offer_notifications(order, offer_to_accept)
+
+            serializer = self.get_serializer(order)
+            return Response({
+                'message': 'Offer accepted and funds moved to escrow successfully.',
+                'order': serializer.data,
+                'client_balance': {
+                    'available_balance': client_user.available_balance,
+                    'in_escrow_balance': client_user.in_escrow_balance,
+                    'pending_balance': client_user.pending_balance,
+                }
+            }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin])
+    def decline_offer(self, request, order_id=None, offer_id=None):
+        """
+        Decline a specific project offer for an order.
+        Permissions: Authenticated Client User (owner of order) or Admin User.
+        Usage: POST /api/orders/{order_id}/decline-offer/{offer_id}/
+        """
+        try:
+            order = self.get_object()
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Check if user owns this order or is admin (already handled by permission_classes)
+        
+        # Get the offer to decline
+        try:
+            offer_to_decline = ProjectOffer.objects.get(offer_id=offer_id, order=order)
+        except ProjectOffer.DoesNotExist:
+            raise NotFound("Offer not found for this order.")
+
+        # Ensure the offer is pending
+        if offer_to_decline.status != 'pending':
+            raise ValidationError({'detail': 'Only pending offers can be declined.'})
+
+        with db_transaction.atomic():
+            offer_to_decline.status = 'rejected'
+            offer_to_decline.save()
+
+            create_notification(
+                user=offer_to_decline.technician_user,
+                notification_type='offer_declined',
+                title='Offer Declined',
+                message=f'Your offer for order #{order.order_id} has been declined by the client.',
+                related_order=order
+            )
+            
+        serializer = self.get_serializer(order)
+        return Response({
+            'message': 'Offer declined successfully.',
+            'order': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def _send_offer_notifications(self, order, accepted_offer):
+        """Send notifications when an offer is accepted."""
+        try:
+            # Notify the accepted technician
+            create_notification(
+                user=accepted_offer.technician_user,
+                notification_type='offer_accepted',
+                title='Offer Accepted',
+                message=f'Your offer for order #{order.order_id} has been accepted.',
+                related_order=order
+            )
+
+            # Notify rejected technicians
+            rejected_offers = ProjectOffer.objects.filter(order=order).exclude(status='accepted') # Exclude accepted offer, check any status not accepted
+            for rejected_offer in rejected_offers:
+                create_notification(
+                    user=rejected_offer.technician_user,
+                    notification_type='offer_rejected',
+                    title='Offer Rejected',
+                    message=f'Your offer for order #{order.order_id} has been rejected.',
+                    related_order=order
+                )
+
+            # Notify the client
+            create_notification(
+                user=order.client_user,
+                notification_type='offer_accepted',
+                title='Offer Accepted',
+                message=f'You have accepted an offer for order #{order.order_id}.',
+                related_order=order
+            )
+        except Exception as e:
+            # Log the error but don't fail the request
+            print(f"Error sending notifications: {e}")
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTechnicianOwnerOrAdmin])
+    def mark_job_done(self, request, order_id=None):
+        """
+        Allows a technician to mark a job as done.
+        Transitions order status to 'AWAITING_RELEASE' and sets job_done_timestamp.
+        Permissions: Authenticated Technician User who is assigned to the order.
+        Usage: POST /api/orders/{order_id}/mark-job-done/
+        """
+        try:
+            order = self.get_object()
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Ensure the authenticated user is the assigned technician
+        if order.technician_user != request.user:
+            raise PermissionDenied("You are not the assigned technician for this order.")
+
+        # Ensure the order is in 'IN_PROGRESS' status
+        if order.order_status != 'IN_PROGRESS': # Ensuring uppercase
+            raise ValidationError({'detail': f'Order must be in "IN_PROGRESS" status to mark as done. Current status: {order.order_status}'})
+
+        with db_transaction.atomic():
+            order.refresh_from_db() # Lock order row
+            order.order_status = 'AWAITING_RELEASE' # Ensuring uppercase
+            order.job_done_timestamp = datetime.now()
+            order.save(update_fields=['order_status', 'job_done_timestamp'])
+
+            # Notify the client that the job is done
+            create_notification(
+                user=order.client_user,
+                notification_type='job_done',
+                title='Job Marked As Done',
+                message=f'Technician {order.technician_user.get_full_name()} has marked order #{order.order_id} as done. Please review and release funds.',
+                related_order=order
+            )
+
+        serializer = self.get_serializer(order)
+        return Response({
+            'message': 'Job marked as done successfully. Client notified to review.',
+            'order': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin])
+    def release_funds(self, request, order_id=None):
+        """
+        Allows a client to release funds for a completed job.
+        Transitions order status to 'COMPLETED', moves funds from escrow to technician's pending balance.
+        Permissions: Authenticated Client User who owns the order.
+        Usage: POST /api/orders/{order_id}/release-funds/
+        """
+        try:
+            order = self.get_object()
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Ensure the authenticated user is the client who owns the order
+        if order.client_user != request.user:
+            raise PermissionDenied("You are not the client for this order.")
+
+        # Ensure the order is in 'AWAITING_RELEASE' status
+        if order.order_status != 'AWAITING_RELEASE': # Ensuring uppercase
+            raise ValidationError({'detail': f'Order must be in "AWAITING_RELEASE" status to release funds. Current status: {order.order_status}'})
+
+        client_user = order.client_user
+        technician_user = order.technician_user
+        amount_to_release = order.final_price
+
+        with db_transaction.atomic():
+            client_user.refresh_from_db() # Lock client user row
+            technician_user.refresh_from_db() # Lock technician user row
+            order.refresh_from_db() # Lock order row
+
+            # Ensure funds are in escrow
+            if client_user.in_escrow_balance < amount_to_release:
+                # This should ideally not happen if escrow deposit was successful
+                raise ValidationError({'detail': 'Error: Insufficient funds in escrow. Please contact support.'})
+
+            # Move funds from client's in_escrow_balance to technician's pending_balance
+            client_user.in_escrow_balance -= amount_to_release
+            client_user.save(update_fields=['in_escrow_balance'])
+
+            technician_user.pending_balance += amount_to_release
+            technician_user.save(update_fields=['pending_balance'])
+
+            # Create an escrow release transaction
+            Transaction.objects.create(
+                source_user=client_user,
+                destination_user=technician_user,
+                order=order,
+                transaction_type='ESCROW_RELEASE',
+                amount=amount_to_release,
+                currency='USD',
+                payment_method='Escrow'
+            )
+
+            # Update the order status to completed and set job_completion_timestamp
+            order.order_status = 'COMPLETED'
+            order.job_completion_timestamp = datetime.now()
+            order.save(update_fields=['order_status', 'job_completion_timestamp'])
+
+            # Notify technician of fund release
+            create_notification(
+                user=technician_user,
+                notification_type='funds_released',
+                title='Funds Released',
+                message=f'Client {client_user.get_full_name()} has released funds for order #{order.order_id}. Your pending balance has been updated.',
+                related_order=order
+            )
+
+        serializer = self.get_serializer(order)
+        return Response({
+            'message': 'Funds released successfully. Order marked as completed.',
+            'order': serializer.data,
+            'client_balance': {
+                'available_balance': client_user.available_balance,
+                'in_escrow_balance': client_user.in_escrow_balance,
+                'pending_balance': client_user.pending_balance,
+            },
+            'technician_balance': {
+                'available_balance': technician_user.available_balance,
+                'in_escrow_balance': technician_user.in_escrow_balance,
+                'pending_balance': technician_user.pending_balance,
+            }
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin])
+    def initiate_dispute(self, request, order_id=None):
+        """
+        Allows a client to initiate a dispute for an order.
+        Transitions order status to 'DISPUTED' and creates a Dispute record.
+        Permissions: Authenticated Client User who owns the order.
+        Usage: POST /api/orders/{order_id}/initiate-dispute/
+        Body: {"client_argument": "Technician did not complete the job as agreed."}
+        """
+        try:
+            order = self.get_object()
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Ensure the authenticated user is the client who owns the order
+        if order.client_user != request.user:
+            raise PermissionDenied("You are not the client for this order.")
+
+        # Ensure the order is in a state where a dispute can be initiated
+        if order.order_status not in ['AWAITING_RELEASE', 'IN_PROGRESS', 'COMPLETED']:
+            raise ValidationError({'detail': f'Dispute can only be initiated for orders in "AWAITING_RELEASE", "IN_PROGRESS", or "COMPLETED" status. Current status: {order.order_status}'})
+
+        client_argument = request.data.get('client_argument')
+        if not client_argument:
+            raise ValidationError({'client_argument': 'Client argument for dispute is required.'})
+        
+        # Ensure a technician is assigned
+        if not order.technician_user:
+            raise ValidationError({'detail': 'Cannot initiate a dispute for an order without an assigned technician.'})
+
+        with db_transaction.atomic():
+            order.refresh_from_db() # Lock order row
+
+            # Create the Dispute record
+            dispute = Dispute.objects.create(
+                order=order,
+                initiator=order.client_user,
+                client_argument=client_argument,
+                status='OPEN'
+            )
+
+            # Update order status
+            order.order_status = 'DISPUTED'
+            order.save(update_fields=['order_status'])
+
+            # No transaction on dispute initiation, actual fund movement during resolution
+
+            # Notify technician and admin
+            create_notification(
+                user=order.technician_user,
+                notification_type='dispute_initiated',
+                title='Dispute Initiated',
+                message=f'Client {order.client_user.get_full_name()} has initiated a dispute for order #{order.order_id}.',
+                related_order=order
+            )
+            # Notify all admins (could be a specific admin group later)
+            admins = User.objects.filter(user_type__user_type_name='admin')
+            for admin_user in admins:
+                create_notification(
+                    user=admin_user,
+                    notification_type='dispute_new',
+                    title='New Dispute',
+                    message=f'A new dispute has been initiated for order #{order.order_id} by client {order.client_user.get_full_name()}.',
+                    related_order=order
+                )
+
+        serializer = self.get_serializer(order)
+        return Response({
+            'message': 'Dispute initiated successfully. Admin and technician have been notified.',
+            'order': serializer.data,
+            'dispute_id': dispute.dispute_id
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin | IsAdminUser])
+    def cancel_order(self, request, order_id=None):
+        """
+        Allows a client or admin to cancel an order.
+        Handles fund refunds from escrow if applicable.
+        Permissions: Authenticated Client User who owns the order, or Admin User.
+        Usage: POST /api/orders/{order_id}/cancel-order/
+        """
+        try:
+            order = self.get_object()
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        user = request.user
+        is_client_owner = (order.client_user == user)
+        is_admin = (user.user_type.user_type_name == 'admin')
+
+        if not (is_client_owner or is_admin):
+            raise PermissionDenied("You do not have permission to cancel this order.")
+        
+        # Ensure order is not already completed, disputed, or cancelled/refunded
+        if order.order_status in ['COMPLETED', 'DISPUTED', 'CANCELLED', 'REFUNDED']:
+            raise ValidationError({'detail': f'Order cannot be cancelled in current status: {order.order_status}'})
+
+        with db_transaction.atomic():
+            order.refresh_from_db() # Lock order row
+            client_user = order.client_user
+            technician_user = order.technician_user
+            amount_in_escrow = order.final_price if order.final_price else Decimal('0.00')
+            
+            # If the order was accepted and funds are in escrow, refund them
+            if order.order_status in ['ACCEPTED', 'IN_PROGRESS', 'AWAITING_RELEASE'] and amount_in_escrow > 0:
+                client_user.refresh_from_db()
+                
+                if client_user.in_escrow_balance < amount_in_escrow:
+                    raise ValidationError({'detail': 'Error: Insufficient funds in escrow for refund. Contact support.'})
+                
+                client_user.in_escrow_balance -= amount_in_escrow
+                client_user.available_balance += amount_in_escrow # Refund to available balance
+                client_user.save(update_fields=['in_escrow_balance', 'available_balance'])
+
+                Transaction.objects.create(
+                    source_user=client_user,
+                    destination_user=client_user,
+                    order=order,
+                    transaction_type='CANCEL_REFUND',
+                    amount=amount_in_escrow,
+                    currency='USD',
+                    payment_method='Escrow'
+                )
+                order.order_status = 'REFUNDED'
+                message_to_client = f'Order #{order.order_id} has been cancelled, and {amount_in_escrow} USD refunded to your available balance.'
+                message_to_technician = f'Order #{order.order_id} has been cancelled by the client/admin. Funds ({amount_in_escrow} USD) have been refunded to the client.'
+            else:
+                # If no funds in escrow (order was 'OPEN')
+                order.order_status = 'CANCELLED'
+                message_to_client = f'Order #{order.order_id} has been cancelled.'
+                message_to_technician = f'Order #{order.order_id} has been cancelled by the client/admin.'
+
+            order.save(update_fields=['order_status'])
+
+            # Send notifications
+            create_notification(
+                user=client_user,
+                notification_type='order_cancelled',
+                title='Order Cancelled',
+                message=message_to_client,
+                related_order=order
+            )
+            if technician_user: # Only notify technician if one was assigned
+                create_notification(
+                    user=technician_user,
+                    notification_type='order_cancelled',
+                    title='Order Cancelled',
+                    message=message_to_technician,
+                    related_order=order
+                )
+            
+        serializer = self.get_serializer(order)
+        return Response({
+            'message': 'Order cancelled successfully.',
+            'order': serializer.data,
+            'client_balance': {
+                'available_balance': client_user.available_balance,
+                'in_escrow_balance': client_user.in_escrow_balance,
+                'pending_balance': client_user.pending_balance,
+            } if is_client_owner else None # Only show balance if client owns order
+        }, status=status.HTTP_200_OK)
+
 
 class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     """
@@ -122,7 +699,6 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     queryset = ProjectOffer.objects.all()
     serializer_class = ProjectOfferSerializer
     lookup_field = 'offer_id'
-    owner_field = 'technician_user'
 
     def get_permissions(self):
         if self.action == 'create':
@@ -151,15 +727,114 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
 
         if user.user_type.user_type_name == 'technician':
             requested_technician_user_id = self.request.data.get('technician_user')
-            if requested_technician_user_id and requested_technician_user_id != user.user_id:
+            if requested_technician_user_id and int(requested_technician_user_id) != user.user_id:
                 raise PermissionDenied("Technicians can only create offers for themselves.")
-            serializer.save(technician_user=user)
+            
+            # Create the offer with all required fields
+            offer = serializer.save(
+                technician_user=user, 
+                status='pending',
+                offer_date=date.today()
+            )
+            
+            # Send notification to client
+            try:
+                create_notification(
+                    user=offer.order.client_user,
+                    notification_type='new_offer',
+                    title='New Offer Received',
+                    message=f'A new offer has been made for your order #{offer.order.order_id}.',
+                    related_order=offer.order
+                )
+            except Exception as e:
+                print(f"Error sending notification: {e}")
+                
         elif user.user_type.user_type_name == 'admin':
             if 'technician_user' not in self.request.data:
                 raise serializers.ValidationError({"technician_user": "This field is required for admin users."})
-            serializer.save()
+            serializer.save(status='pending', offer_date=date.today())
         else:
             raise PermissionDenied("Only technicians and admins can create project offers.")
+
+    @action(detail=False, methods=['get'], permission_classes=[IsTechnicianUser])
+    def client_offers_for_technician(self, request):
+        """
+        Return a list of client-initiated offers awaiting response for the authenticated technician.
+        Permissions: Authenticated Technician User only.
+        Usage: GET /api/orders/projectoffers/client-offers-for-technician/
+        """
+        user = request.user
+        if not user.is_authenticated or user.user_type.user_type_name != 'technician':
+            raise PermissionDenied("Only technicians can view client offers.")
+
+        client_offers = ProjectOffer.objects.filter(
+            offer_initiator='client',
+            technician_user=user,
+            status='pending'
+        ).order_by('-offer_date', '-offer_id')
+
+        page = self.paginate_queryset(client_offers)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True, context={'request': request})
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(client_offers, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['put', 'patch'], permission_classes=[IsClientUser])
+    def update_client_offer(self, request, offer_id=None, **kwargs): # Added offer_id to signature
+        """
+        Update a client-initiated offer. Only allowed if the offer is in 'pending' status.
+        Permissions: Authenticated Client User (owner of the offer) only.
+        Usage: PUT /api/orders/projectoffers/{offer_id}/update-client-offer/
+        """
+        try:
+            offer = self.get_object()
+        except ProjectOffer.DoesNotExist:
+            raise NotFound("Offer not found.")
+
+        # Check if the authenticated user is the creator of the offer and if it's client-initiated
+        if (offer.order.client_user != request.user or offer.offer_initiator != 'client'):
+            raise PermissionDenied("You can only update your own client-initiated offers.")
+
+        # Check if the offer is in pending status
+        if offer.status != 'pending':
+            raise PermissionDenied("Cannot edit offer. Only pending offers can be edited.")
+
+        # Separate order fields from offer fields
+        order_fields = ['problem_description', 'requested_location', 'scheduled_date', 'scheduled_time_start', 'scheduled_time_end']
+        offer_fields = ['offered_price', 'offer_description']
+        
+        order_data = {}
+        offer_data = {}
+        
+        for key, value in request.data.items():
+            if key in order_fields:
+                order_data[key] = value
+            elif key in offer_fields:
+                offer_data[key] = value
+            else:
+                # If field doesn't belong to either, add it to offer data (for other offer-specific fields)
+                offer_data[key] = value
+
+        # Update the related order if order fields are provided
+        if order_data:
+            order_serializer = OrderSerializer(offer.order, data=order_data, partial=True)
+            if order_serializer.is_valid():
+                order_serializer.save()
+            else:
+                return Response(order_serializer.errors, status=400)
+
+        # Update the offer with offer-specific data
+        serializer = self.get_serializer(offer, data=offer_data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'Offer updated successfully.',
+                'offer': serializer.data
+            })
+        return Response(serializer.errors, status=400)
+
 
 class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
     """

@@ -51,7 +51,8 @@ class ReviewViewSet(viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdminUser | (IsClientUser & IsReviewOwnerOrAdmin)] # Only admin or client owner can update/delete
         else: # list, retrieve
-            self.permission_classes = [IsAdminUser | (IsClientUser & IsReviewOwnerOrAdmin) | (IsTechnicianUser & IsReviewTechnicianOrAdmin)] # Only authenticated users can view reviews
+            # Add permissions.IsAuthenticated to ensure unauthenticated users get 401
+            self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | (IsClientUser & IsReviewOwnerOrAdmin) | (IsTechnicianUser & IsReviewTechnicianOrAdmin)] # Only authenticated users can view reviews
         return super().get_permissions()
 
     def get_queryset(self):

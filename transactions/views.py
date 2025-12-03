@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions
+from django.db.models import Q # Import Q for complex queries
 from .models import Transaction
 from .serializers import TransactionSerializer
 from api.permissions import IsAdminUser, IsUserOwnerOrAdmin
@@ -41,9 +42,9 @@ class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Permissions: Authenticated User (owner) or Admin User.
     Usage: DELETE /api/transactions/{id}/
     """
-    queryset = Transaction.objects.all()
+    queryset = Transaction.objects.all().order_by('id')
     serializer_class = TransactionSerializer
-    owner_field = 'user'
+    owner_field = 'source_user' # Updated to source_user
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -53,4 +54,25 @@ class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         return super().get_permissions()
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        if self.request.user.is_staff or self.request.user.is_superuser: # Check if admin
+            # Admin can specify source_user and destination_user.
+            # If source_user is not provided, default to admin user
+            if 'source_user' not in serializer.validated_data:
+                serializer.validated_data['source_user'] = self.request.user
+            # If destination_user is not provided, default to source_user (which might be specified by admin or defaulted to admin)
+            if 'destination_user' not in serializer.validated_data:
+                serializer.validated_data['destination_user'] = serializer.validated_data['source_user']
+        else:
+            # Regular user: source_user is always the authenticated user
+            serializer.validated_data['source_user'] = self.request.user
+            # If destination_user is not provided, default to the authenticated user
+            if 'destination_user' not in serializer.validated_data:
+                serializer.validated_data['destination_user'] = self.request.user
+        serializer.save()
+
+    def get_filtered_queryset(self, user, base_queryset):
+        """
+        Returns the queryset for non-admin authenticated users,
+        filtered by either source_user or destination_user using Q objects.
+        """
+        return base_queryset.filter(Q(source_user=user) | Q(destination_user=user)).order_by('id')

@@ -115,8 +115,8 @@ class PaymentMethodTests(APITestCase):
         client = self.get_auth_client(self.client_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1) # Only payment methods belonging to the authenticated user
-        self.assertEqual(response.data[0]['card_type'], 'MasterCard')
+        self.assertEqual(len(response.data['results']), 1) # Only payment methods belonging to the authenticated user
+        self.assertEqual(response.data['results'][0]['card_type'], 'MasterCard')
 
     def test_client_retrieve_own_payment_method(self):
         client = self.get_auth_client(self.client_user)
@@ -179,7 +179,7 @@ class PaymentMethodTests(APITestCase):
         client = self.get_auth_client(self.admin_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 2) # Admin sees all payment methods
+        self.assertEqual(len(response.data['results']), 2) # Admin sees all payment methods
 
     def test_admin_retrieve_any_payment_method(self):
         client = self.get_auth_client(self.admin_user)
@@ -230,8 +230,8 @@ class PaymentMethodTests(APITestCase):
         client = self.get_auth_client(self.technician_user)
         response = client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['user'], self.technician_user.user_id)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['user'], self.technician_user.user_id)
 
     def test_technician_retrieve_own_payment_method(self):
         # Create a payment method for the technician first
