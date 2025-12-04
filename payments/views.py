@@ -94,16 +94,17 @@ class PaymentMethodViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             raise PermissionDenied("Authentication required to create payment methods.")
 
         if user.user_type.user_type_name == 'admin':
-            # Admin can create for any user, but the user must be specified in the data
-            if 'user' not in self.request.data:
-                raise serializers.ValidationError({"user": "This field is required for admin users."})
-            serializer.save()
+            # Admin can create for any user if 'user' is specified in data,
+            # otherwise, if no 'user' is specified, assume admin is creating for themselves.
+            if 'user' in self.request.data:
+                serializer.save() # Admin creates for a specified user
+            else:
+                serializer.save(user=user) # Admin creates for themselves
         else:
-            # Clients and technicians can only create payment methods for themselves
-            # Ensure the 'user' field in the request data, if present, matches the authenticated user
-            if 'user' in self.request.data and self.request.data['user'] != user.user_id:
-                raise PermissionDenied("You can only create payment methods for yourself.")
-            serializer.save(user=user) # Force the user to be the authenticated user
+            # Clients and technicians can only create payment methods for themselves.
+            # The serializer's HiddenField(CurrentUserDefault()) ensures 'user' is the authenticated user.
+            # We explicitly save with the authenticated user to enforce this for all non-admin roles.
+            serializer.save(user=user)
 
 class PaymentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     """
@@ -256,13 +257,15 @@ class PaymentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         if not user.is_authenticated:
             raise PermissionDenied("Authentication required to create payments.")
 
-        if user.user_type.user_type_name in ['client', 'technician']:
-            if 'user' in self.request.data and self.request.data['user'] != user.user_id:
-                raise PermissionDenied("Users can only create payments for themselves.")
-            serializer.save(user=user)
-        elif user.user_type.user_type_name == 'admin':
-            if 'user' not in self.request.data:
-                raise serializers.ValidationError({"user": "This field is required for admin users."})
-            serializer.save()
+        if user.user_type.user_type_name == 'admin':
+            # Admin can create for any user if 'user' is specified in data,
+            # otherwise, if no 'user' is specified, assume admin is creating for themselves.
+            if 'user' in self.request.data:
+                serializer.save() # Admin creates for a specified user
+            else:
+                serializer.save(user=user) # Admin creates for themselves
         else:
-            raise PermissionDenied("Only clients, technicians, and admins can create payments.")
+            # Clients and technicians can only create payments for themselves.
+            # The serializer (if using CurrentUserDefault) handles setting the user,
+            # but we explicitly save with the authenticated user to enforce this.
+            serializer.save(user=user)

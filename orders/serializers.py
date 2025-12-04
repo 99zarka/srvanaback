@@ -28,7 +28,7 @@ class OrderSerializer(serializers.ModelSerializer):
 class ProjectOfferSerializer(serializers.ModelSerializer):
     technician_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(user_type__user_type_name='technician')) # Accept technician user ID for creation
     offer_initiator = serializers.CharField(read_only=True) # Read-only for creation, set by view
-    order = serializers.PrimaryKeyRelatedField(queryset=Order.objects.all()) # Accept order ID for creation
+    order = NestedOrderSerializer() # Nest order details, including service, for detailed representation
 
     class Meta:
         model = ProjectOffer

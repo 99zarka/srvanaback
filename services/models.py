@@ -4,6 +4,7 @@ from users.models import User # Import User for ForeignKey in other models
 class ServiceCategory(models.Model):
     category_id = models.AutoField(primary_key=True)
     category_name = models.CharField(max_length=255, null=False, blank=False)
+    arabic_name = models.CharField(max_length=255, null=True, blank=True) # New field for Arabic name
     description = models.TextField(null=True, blank=True)
     icon_url = models.ImageField(upload_to='service_category_icons/', null=True, blank=True)
 
@@ -17,6 +18,7 @@ class Service(models.Model):
     service_id = models.AutoField(primary_key=True)
     category = models.ForeignKey(ServiceCategory, on_delete=models.CASCADE, null=False, blank=False)
     service_name = models.CharField(max_length=255, null=False, blank=False)
+    arabic_name = models.CharField(max_length=255, null=True, blank=True) # New field for Arabic name
     description = models.TextField(null=True, blank=True)
     service_type = models.CharField(max_length=255, null=False, blank=False)
     base_inspection_fee = models.DecimalField(max_digits=10, decimal_places=2, null=False, blank=False)

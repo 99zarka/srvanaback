@@ -1,4 +1,6 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django.db.models import Q # Import Q for complex queries
 from .models import Transaction
 from .serializers import TransactionSerializer
@@ -49,6 +51,8 @@ class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
+        elif self.action == 'me':
+            self.permission_classes = [permissions.IsAuthenticated]
         else: # list, retrieve
             self.permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
         return super().get_permissions()
@@ -76,3 +80,21 @@ class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         filtered by either source_user or destination_user using Q objects.
         """
         return base_queryset.filter(Q(source_user=user) | Q(destination_user=user)).order_by('id')
+
+    @action(detail=False, methods=['get'])
+    def me(self, request):
+        """
+        Returns a list of transactions for the currently authenticated user,
+        where the user is either the source or destination.
+        """
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        queryset = self.get_filtered_queryset(request.user, self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
