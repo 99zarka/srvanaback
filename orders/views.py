@@ -74,7 +74,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     Usage: POST /api/orders/{order_id}/accept-offer/{offer_id}/
     """
     pagination_class = OrderPagination
-    queryset = Order.objects.all()
+    queryset = Order.objects.all().order_by('-order_id') # Sorted by order_id descending
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
 
@@ -109,23 +109,23 @@ class OrderViewSet(viewsets.ModelViewSet):
         # For detail views (retrieve, update, destroy, and custom actions like accept_offer, mark_job_done, etc.)
         # always return the full queryset. Permissions will then handle whether the user can actually access/modify it.
         if self.detail or self.action in ['accept_offer', 'decline_offer', 'mark_job_done', 'release_funds', 'initiate_dispute', 'cancel_order', 'offers']:
-            return Order.objects.all()
+            return Order.objects.all().order_by('-order_id') # Sorted by order_id descending
 
         # For list actions, apply specific filtering based on user role
         if not user.is_authenticated:
             return Order.objects.none() # Unauthenticated users see no orders in generic list
 
         if user.user_type.user_type_name == 'admin':
-            return Order.objects.all()
+            return Order.objects.all().order_by('-order_id') # Sorted by order_id descending
         elif user.user_type.user_type_name == 'client':
-            return Order.objects.filter(client_user=user)
+            return Order.objects.filter(client_user=user).order_by('-order_id') # Sorted by order_id descending
         elif user.user_type.user_type_name == 'technician':
             # Technicians should not see generic order list (handled by get_permissions for 'list' action to deny)
             # For generic 'list' action for technicians, return no orders.
             if self.action == 'list':
                 return Order.objects.none()
             # For other detail-like actions or custom actions specific to assigned technician, filter by assigned orders.
-            return Order.objects.filter(technician_user=user) 
+            return Order.objects.filter(technician_user=user).order_by('-order_id') # Sorted by order_id descending
 
         return Order.objects.none() # Default fallback, should not be reached with proper user type handling
 
@@ -171,7 +171,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         available_orders = Order.objects.filter(
             technician_user__isnull=True,
             order_status='OPEN'
-        ).order_by('-creation_timestamp')
+        ).order_by('-creation_timestamp') # Keep original sorting for this specific action
 
         # Apply pagination
         page = self.paginate_queryset(available_orders)
@@ -224,7 +224,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         # Check if user owns this order or is admin (already handled by permission_classes)
 
         # Ensure the order is in a state where an offer can be accepted
-        if order.order_status != 'OPEN': # Ensure status is uppercase
+        if order.order_status not in ['OPEN', 'AWAITING_CLIENT_ESCROW_CONFIRMATION']: # Ensure status is uppercase
             raise ValidationError({'detail': f'Order is not in a state to accept offers. Current status: {order.order_status}'})
 
         # Get the offer to accept
@@ -709,16 +709,28 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             self.permission_classes = [IsAdminUser | (IsTechnicianUser & IsTechnicianOwnerOrAdmin) | (IsClientUser & IsClientOwnerOrAdmin)]
         return super().get_permissions()
 
-    def get_filtered_queryset(self, user, base_queryset):
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Admins can see all offers
+        if user.user_type.user_type_name == 'admin':
+            return ProjectOffer.objects.all()
+
+        # For specific actions like 'retrieve', 'update', 'partial_update', 'destroy',
+        # and custom actions with detail=True, the default queryset is fine, 
+        # and object-level permissions will handle access.
+        if self.detail or self.action in ['update_client_offer', 'client_offers_for_technician']: # Add other detail=True/detail=False custom actions here that do their own filtering
+            return ProjectOffer.objects.all()
+
+        # For 'list' action and custom actions with detail=False that are not explicitly handled above, filter by user role
         if user.user_type.user_type_name == 'technician':
-            if self.action == 'list':
-                return base_queryset.filter(technician_user=user)
-            return base_queryset # For detail actions, rely on object-level permissions
+            # Technicians see their own project offers in the generic list
+            return ProjectOffer.objects.filter(technician_user=user)
         elif user.user_type.user_type_name == 'client':
-            if self.action == 'list':
-                return base_queryset.filter(order__client_user=user)
-            return base_queryset # For detail actions, rely on object-level permissions
-        return base_queryset.none()
+            # Clients see offers related to their orders
+            return ProjectOffer.objects.filter(order__client_user=user)
+        
+        return ProjectOffer.objects.none() # Default for other user types or unauthenticated
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -887,9 +899,9 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
         # Apply limit if provided - must do this before ordering
         limit = self.request.query_params.get('limit')
         if limit and limit.isdigit():
-            queryset = queryset.order_by('-creation_timestamp')[:int(limit)]
+            queryset = queryset.order_by('-order_id')[:int(limit)] # Sorted by order_id descending
         else:
             # Always order by creation date, most recent first
-            queryset = queryset.order_by('-creation_timestamp')
+            queryset = queryset.order_by('-order_id') # Sorted by order_id descending
 
         return queryset

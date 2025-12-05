@@ -4,11 +4,15 @@ from services.models import Service
 from datetime import date
 
 class Order(models.Model):
+    ORDER_TYPE_CHOICES = [
+        ('direct_hire', 'Direct Hire'),
+        ('service_request', 'Service Request'),
+    ]
     order_id = models.AutoField(primary_key=True)
     client_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='client_orders', null=False, blank=False)
     service = models.ForeignKey(Service, on_delete=models.CASCADE, null=False, blank=False)
     technician_user = models.ForeignKey(User, on_delete=models.SET_NULL, related_name='technician_orders', null=True, blank=True)
-    order_type = models.CharField(max_length=255, null=False, blank=False)
+    order_type = models.CharField(max_length=255, choices=ORDER_TYPE_CHOICES, null=False, blank=False)
     problem_description = models.TextField(null=False, blank=False)
     requested_location = models.TextField(null=False, blank=False)
     scheduled_date = models.DateField(null=False, blank=False)
@@ -23,6 +27,8 @@ class Order(models.Model):
         ('DISPUTED', 'Disputed'),
         ('CANCELLED', 'Cancelled'),
         ('REFUNDED', 'Refunded'),
+        ('AWAITING_TECHNICIAN_RESPONSE', 'Awaiting Technician Response'),
+        ('AWAITING_CLIENT_ESCROW_CONFIRMATION', 'Awaiting Client Escrow Confirmation'), # NEW STATUS
     ]
     order_status = models.CharField(max_length=50, choices=ORDER_STATUS_CHOICES, default='OPEN')
     initial_observations = models.TextField(blank=True, null=True)
@@ -37,6 +43,8 @@ class Order(models.Model):
     job_done_timestamp = models.DateTimeField(null=True, blank=True) # When technician marks job as done
     auto_release_date = models.DateTimeField(null=True, blank=True) # For automatic fund release
     final_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # NEW FIELD for service_request orders: Client's initial expected price/budget
+    expected_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     commission_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     platform_commission_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     service_fee_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)

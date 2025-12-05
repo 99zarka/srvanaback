@@ -10,39 +10,45 @@ from issue_reports.models import IssueReport
 from django.db.models import Sum, Count, Avg
 from django.utils import timezone
 from api.permissions import IsAdminUser
+from decimal import Decimal # Import Decimal for financial calculations
 
 class ClientSummaryAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         client_user = request.user
-        # Active Orders (pending or in progress)
+        
+        # Refresh user balances from database to ensure they are current
+        client_user.refresh_from_db()
+
+        # Active Orders (pending, in progress, accepted, or awaiting client escrow confirmation)
         active_orders_count = Order.objects.filter(
             client_user=client_user,
-            order_status__in=['pending', 'in_progress']
+            order_status__in=['OPEN', 'ACCEPTED', 'IN_PROGRESS', 'AWAITING_CLIENT_ESCROW_CONFIRMATION', 'AWAITING_RELEASE']
         ).count()
 
         # Completed Orders
         completed_orders_count = Order.objects.filter(
             client_user=client_user,
-            order_status='completed'
+            order_status='COMPLETED'
         ).count()
 
         # Total Spent
         total_spent = Payment.objects.filter(
             user=client_user,
             status='COMPLETED'
-        ).aggregate(Sum('amount'))['amount__sum'] or 0.00
+        ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
         # Average Rating (from reviews given to technicians by this client)
-        # This might be tricky if a client doesn't explicitly 'rate' technicians, but rather orders are reviewed.
-        # Assuming reviews are tied to orders made by the client and given by the client.
         # This aggregates ratings given *by* this client.
         client_given_reviews_avg_rating = Review.objects.filter(
             reviewer=client_user
-        ).aggregate(Avg('rating'))['rating__avg'] or 0.00
+        ).aggregate(Avg('rating'))['rating__avg'] or Decimal('0.00')
 
         return Response({
+            'available_balance': client_user.available_balance,
+            'in_escrow_balance': client_user.in_escrow_balance,
+            'pending_balance': client_user.pending_balance,
             'active_orders': active_orders_count,
             'completed_orders': completed_orders_count,
             'total_spent': total_spent,
@@ -64,12 +70,12 @@ class AdminSummaryAPIView(APIView):
         active_workers = User.objects.filter(user_type__user_type_name='technician').count()
 
         # Services completed
-        services_completed = Order.objects.filter(order_status='completed').count()
+        services_completed = Order.objects.filter(order_status='COMPLETED').count()
 
         # Total revenue (sum of completed orders' final_price)
         total_revenue = Order.objects.filter(
-            order_status='completed'
-        ).aggregate(Sum('final_price'))['final_price__sum'] or 0.00
+            order_status='COMPLETED'
+        ).aggregate(Sum('final_price'))['final_price__sum'] or Decimal('0.00')
 
         # Total issue reports
         total_issue_reports = IssueReport.objects.count()

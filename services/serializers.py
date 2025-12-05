@@ -10,6 +10,8 @@ class ServiceCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ServiceSerializer(serializers.ModelSerializer):
+    category = ServiceCategorySerializer(read_only=True) # Nested serializer for category
+
     class Meta:
         model = Service
         fields = '__all__'
