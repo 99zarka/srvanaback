@@ -168,8 +168,8 @@ SIMPLE_JWT = {
 }
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # Moved CorsMiddleware to the top
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware', # Add CorsMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -193,28 +193,10 @@ CORS_ALLOWED_ORIGINS = [
     "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
 ]
 
-CORS_ORIGIN_ALLOW_ALL = True # Using older, sometimes more robust setting
 CORS_ALLOW_CREDENTIALS = True # Allow credentials (e.g., Authorization headers)
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-CORS_ORIGIN_WHITELIST = () # Explicitly empty to rely on CORS_ORIGIN_ALLOW_ALL
+
+# If you want to allow all origins during development, you can use:
+# CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
 
 # WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
 # It is used here for development/testing purposes as per user request.
