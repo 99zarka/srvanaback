@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y libpq-dev gcc
 # Copy the current directory contents into the container at /app
 COPY . /app
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Install uv and then use it to install requirements
+RUN pip install uv && uv pip install --no-cache -r requirements.txt
 
 # Expose port 8000 to the outside world
 EXPOSE 8000
