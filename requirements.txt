@@ -31,3 +31,4 @@ uritemplate==4.2.0
 urllib3==2.5.0
 cloudinary==1.44.1
 Pillow
+gunicorn
