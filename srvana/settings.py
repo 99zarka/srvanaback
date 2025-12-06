@@ -194,8 +194,26 @@ MIDDLEWARE = [
 # ]
 
 CORS_ALLOW_ALL_ORIGINS = True # Explicitly allow all origins
-
 CORS_ALLOW_CREDENTIALS = True # Allow credentials (e.g., Authorization headers)
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 # WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
 # It is used here for development/testing purposes as per user request.
