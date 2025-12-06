@@ -168,8 +168,8 @@ SIMPLE_JWT = {
 }
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware', # Moved CorsMiddleware to the top
     'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware', # Add CorsMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -178,27 +178,24 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000", # Allow React frontend to access the API
-    "http://localhost:5173", # Allow React frontend to access the API
-    "http://localhost:8000", # Default Django runserver port
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:8000",
-    "http://99zarka.github.io",
-    "https://99zarka.github.io",
-    "http://www.srvana.tech",
-    "https://www.srvana.tech",
-    "http://srvanaback-268062404120.europe-west1.run.app",
-    "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
-]
+# CORS_ALLOWED_ORIGINS = [ # Removed specific origins
+#     "http://localhost:3000",
+#     "http://localhost:5173",
+#     "http://localhost:8000",
+#     "http://127.0.0.1:3000",
+#     "http://127.0.0.1:5173",
+#     "http://127.0.0.1:8000",
+#     "http://99zarka.github.io",
+#     "https://99zarka.github.io",
+#     "http://www.srvana.tech",
+#     "https://www.srvana.tech",
+#     "http://srvanaback-268062404120.europe-west1.run.app",
+#     "https://srvanaback-268062404120.europe-west1.run.app"
+# ]
 
-CORS_ALLOW_ALL_ORIGINS = True #Temporarily allow all origins for local file testing
+CORS_ALLOW_ALL_ORIGINS = True # Explicitly allow all origins
 
 CORS_ALLOW_CREDENTIALS = True # Allow credentials (e.g., Authorization headers)
-
-# If you want to allow all origins during development, you can use:
-# CORS_ALLOW_ALL_ORIGINS = True # Temporarily allow all origins for local file testing
 
 # WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
 # It is used here for development/testing purposes as per user request.
