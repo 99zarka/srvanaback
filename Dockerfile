@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y libpq-dev gcc
 COPY . /app
 
 # Install uv and then use it to install requirements
-RUN pip install uv && uv pip install --no-cache -r requirements.txt
+RUN pip install uv && python -m uv pip install --system --no-cache -r requirements.txt
 
 # Expose port 8000 to the outside world
 EXPOSE 8000
