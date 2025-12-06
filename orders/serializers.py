@@ -24,7 +24,7 @@ class ProjectOfferDetailSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     client_user = PublicUserSerializer(read_only=True)
-    service = serializers.PrimaryKeyRelatedField(queryset=Service.objects.all())
+    service = ServiceSerializer(read_only=True) # Changed from PrimaryKeyRelatedField
     associated_offer = serializers.SerializerMethodField()
     project_offers = ProjectOfferDetailSerializer(many=True, read_only=True) # Added to display all offers
     
@@ -38,28 +38,25 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_associated_offer(self, obj):
         # Prioritize an accepted offer regardless of order_type
-        accepted_offer = obj.project_offers.filter(status='accepted').first()
+        accepted_offer = next((offer for offer in obj.project_offers.all() if offer.status == 'accepted'), None)
         if accepted_offer:
             return ProjectOfferDetailSerializer(accepted_offer).data
 
         # If no accepted offer, consider other types based on order_type
         if obj.order_type == 'direct_hire':
             # For direct hire, prioritize a client-initiated direct offer if no accepted offer
-            client_offer = obj.project_offers.filter(offer_initiator='client', status='pending').first()
+            client_offer = next((offer for offer in obj.project_offers.all() if offer.offer_initiator == 'client' and offer.status == 'pending'), None)
             if client_offer:
                 return ProjectOfferDetailSerializer(client_offer).data
         elif obj.order_type == 'service_request':
             # For service request, prioritize any pending technician offer if no accepted offer
-            technician_pending_offer = obj.project_offers.filter(offer_initiator='technician', status='pending').first()
+            technician_pending_offer = next((offer for offer in obj.project_offers.all() if offer.offer_initiator == 'technician' and offer.status == 'pending'), None)
             if technician_pending_offer:
                 return ProjectOfferDetailSerializer(technician_pending_offer).data
         
         return None # No associated offer found based on criteria
 
-    def to_representation(self, instance):
-        ret = super().to_representation(instance)
-        ret['service'] = ServiceSerializer(instance.service).data
-        return ret
+    # Removed to_representation method as service is now directly serialized
 
     class Meta:
         model = Order

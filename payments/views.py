@@ -251,6 +251,45 @@ class PaymentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             'pending_balance': user.pending_balance,
         }, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def transfer_pending_to_available(self, request):
+        """
+        Allows an authenticated user to transfer their entire pending_balance to available_balance.
+        Permissions: Authenticated User.
+        Usage: POST /api/payments/transfer-pending-to-available/
+        """
+        user = request.user
+
+        with db_transaction.atomic():
+            user.refresh_from_db() # Lock user row
+
+            if user.pending_balance <= 0:
+                raise ValidationError({'detail': 'No pending balance to transfer.'})
+
+            amount_to_transfer = user.pending_balance
+
+            # Move funds from pending_balance to available_balance
+            user.pending_balance -= amount_to_transfer
+            user.available_balance += amount_to_transfer
+            user.save(update_fields=['pending_balance', 'available_balance'])
+
+            # Create a transaction record for this internal transfer
+            Transaction.objects.create(
+                source_user=user,
+                destination_user=user,
+                transaction_type='PENDING_TO_AVAILABLE_TRANSFER',
+                amount=amount_to_transfer,
+                currency='USD',
+            )
+
+        return Response({
+            'message': f"{amount_to_transfer} transferred from pending to available balance successfully.",
+            'user_id': user.user_id,
+            'available_balance': user.available_balance,
+            'in_escrow_balance': user.in_escrow_balance,
+            'pending_balance': user.pending_balance,
+        }, status=status.HTTP_200_OK)
+
 
     def perform_create(self, serializer):
         user = self.request.user

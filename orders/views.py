@@ -74,7 +74,18 @@ class OrderViewSet(viewsets.ModelViewSet):
     Usage: POST /api/orders/{order_id}/accept-offer/{offer_id}/
     """
     pagination_class = OrderPagination
-    queryset = Order.objects.all().order_by('-order_id') # Sorted by order_id descending
+    # Optimized queryset for common relations
+    queryset = Order.objects.select_related(
+        'client_user', 
+        'client_user__user_type',
+        'technician_user', 
+        'technician_user__user_type',
+        'service'
+    ).prefetch_related(
+        'project_offers',
+        'project_offers__technician_user',
+        'project_offers__technician_user__user_type'
+    ).order_by('-order_id')
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
 
@@ -94,7 +105,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         elif self.action == 'offers':
             # Offers can be viewed by client owner, assigned technician, or admin
             self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
-        elif self.action == 'mark_job_done':
+        elif self.action == 'mark_job_done' or self.action == 'start_job': # Added start_job
             # Action strictly for the assigned technician or admin
             self.permission_classes = [IsAdminUser | IsTechnicianOwnerOrAdmin]
         elif self.action == 'retrieve': # Explicitly handle retrieve
@@ -105,27 +116,38 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_queryset = Order.objects.select_related(
+            'client_user', 
+            'client_user__user_type',
+            'technician_user', 
+            'technician_user__user_type',
+            'service'
+        ).prefetch_related(
+            'project_offers',
+            'project_offers__technician_user',
+            'project_offers__technician_user__user_type'
+        ).order_by('-order_id')
 
         # For detail views (retrieve, update, destroy, and custom actions like accept_offer, mark_job_done, etc.)
         # always return the full queryset. Permissions will then handle whether the user can actually access/modify it.
-        if self.detail or self.action in ['accept_offer', 'decline_offer', 'mark_job_done', 'release_funds', 'initiate_dispute', 'cancel_order', 'offers']:
-            return Order.objects.all().order_by('-order_id') # Sorted by order_id descending
+        if self.detail or self.action in ['accept_offer', 'decline_offer', 'mark_job_done', 'release_funds', 'initiate_dispute', 'cancel_order', 'offers', 'start_job']: # Added start_job
+            return base_queryset
 
         # For list actions, apply specific filtering based on user role
         if not user.is_authenticated:
             return Order.objects.none() # Unauthenticated users see no orders in generic list
 
         if user.user_type.user_type_name == 'admin':
-            return Order.objects.all().order_by('-order_id') # Sorted by order_id descending
+            return base_queryset
         elif user.user_type.user_type_name == 'client':
-            return Order.objects.filter(client_user=user).order_by('-order_id') # Sorted by order_id descending
+            return base_queryset.filter(client_user=user)
         elif user.user_type.user_type_name == 'technician':
             # Technicians should not see generic order list (handled by get_permissions for 'list' action to deny)
             # For generic 'list' action for technicians, return no orders.
             if self.action == 'list':
                 return Order.objects.none()
             # For other detail-like actions or custom actions specific to assigned technician, filter by assigned orders.
-            return Order.objects.filter(technician_user=user).order_by('-order_id') # Sorted by order_id descending
+            return base_queryset.filter(technician_user=user)
 
         return Order.objects.none() # Default fallback, should not be reached with proper user type handling
 
@@ -171,6 +193,14 @@ class OrderViewSet(viewsets.ModelViewSet):
         available_orders = Order.objects.filter(
             technician_user__isnull=True,
             order_status='OPEN'
+        ).select_related(
+            'client_user', 
+            'client_user__user_type',
+            'service'
+        ).prefetch_related(
+            'project_offers',
+            'project_offers__technician_user',
+            'project_offers__technician_user__user_type'
         ).order_by('-creation_timestamp') # Keep original sorting for this specific action
 
         # Apply pagination
@@ -199,7 +229,10 @@ class OrderViewSet(viewsets.ModelViewSet):
                 request.user.user_type.user_type_name == 'admin'):
             raise PermissionDenied("You can only view offers for your own orders or assigned tasks.")
 
-        offers = ProjectOffer.objects.filter(order=order).order_by('-offer_date', '-offer_id')
+        offers = ProjectOffer.objects.filter(order=order).select_related(
+            'technician_user', 
+            'technician_user__user_type'
+        ).order_by('-offer_date', '-offer_id')
         
         # Apply pagination
         page = self.paginate_queryset(offers)
@@ -370,6 +403,46 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Exception as e:
             # Log the error but don't fail the request
             print(f"Error sending notifications: {e}")
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTechnicianOwnerOrAdmin])
+    def start_job(self, request, order_id=None):
+        """
+        Allows an assigned technician to mark an order as 'IN_PROGRESS'.
+        Permissions: Authenticated Technician User who is assigned to the order.
+        Usage: POST /api/orders/{order_id}/start-job/
+        """
+        try:
+            order = self.get_object()
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Ensure the authenticated user is the assigned technician
+        if order.technician_user != request.user:
+            raise PermissionDenied("You are not the assigned technician for this order.")
+
+        # Ensure the order is in 'ACCEPTED' status
+        if order.order_status != 'ACCEPTED':
+            raise ValidationError({'detail': f'Order must be in "ACCEPTED" status to start the job. Current status: {order.order_status}'})
+
+        with db_transaction.atomic():
+            order.refresh_from_db()
+            order.order_status = 'IN_PROGRESS'
+            order.save(update_fields=['order_status'])
+
+            create_notification(
+                user=order.client_user,
+                notification_type='job_started',
+                title='Job Started',
+                message=f'Technician {order.technician_user.get_full_name()} has started working on order #{order.order_id}.',
+                related_order=order
+            )
+        
+        serializer = self.get_serializer(order)
+        return Response({
+            'message': 'Job started successfully. Order status updated to IN_PROGRESS.',
+            'order': serializer.data
+        }, status=status.HTTP_200_OK)
+
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsTechnicianOwnerOrAdmin])
     def mark_job_done(self, request, order_id=None):
@@ -712,23 +785,32 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         
+        base_queryset = ProjectOffer.objects.select_related(
+            'technician_user', 
+            'technician_user__user_type',
+            'order',
+            'order__client_user',
+            'order__client_user__user_type',
+            'order__service'
+        )
+
         # Admins can see all offers
         if user.user_type.user_type_name == 'admin':
-            return ProjectOffer.objects.all()
+            return base_queryset
 
         # For specific actions like 'retrieve', 'update', 'partial_update', 'destroy',
         # and custom actions with detail=True, the default queryset is fine, 
         # and object-level permissions will handle access.
         if self.detail or self.action in ['update_client_offer', 'client_offers_for_technician']: # Add other detail=True/detail=False custom actions here that do their own filtering
-            return ProjectOffer.objects.all()
+            return base_queryset
 
         # For 'list' action and custom actions with detail=False that are not explicitly handled above, filter by user role
         if user.user_type.user_type_name == 'technician':
             # Technicians see their own project offers in the generic list
-            return ProjectOffer.objects.filter(technician_user=user)
+            return base_queryset.filter(technician_user=user)
         elif user.user_type.user_type_name == 'client':
             # Clients see offers related to their orders
-            return ProjectOffer.objects.filter(order__client_user=user)
+            return base_queryset.filter(order__client_user=user)
         
         return ProjectOffer.objects.none() # Default for other user types or unauthenticated
 
@@ -783,6 +865,11 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             offer_initiator='client',
             technician_user=user,
             status='pending'
+        ).select_related(
+            'order',
+            'order__client_user',
+            'order__client_user__user_type',
+            'order__service'
         ).order_by('-offer_date', '-offer_id')
 
         page = self.paginate_queryset(client_offers)
@@ -882,7 +969,17 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
             return Order.objects.none()
 
         # Start with orders assigned to this technician
-        queryset = Order.objects.filter(technician_user=user)
+        queryset = Order.objects.filter(technician_user=user).select_related(
+            'client_user', 
+            'client_user__user_type',
+            'technician_user', 
+            'technician_user__user_type',
+            'service'
+        ).prefetch_related(
+            'project_offers',
+            'project_offers__technician_user',
+            'project_offers__technician_user__user_type'
+        )
 
         # Apply status filtering if provided (use order_status, not status)
         status_filter = self.request.query_params.get('status__in')

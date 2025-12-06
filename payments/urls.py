@@ -4,6 +4,9 @@ from . import views
 
 router = DefaultRouter()
 router.register(r'paymentmethods', views.PaymentMethodViewSet, basename='paymentmethod')
-router.register(r'payments', views.PaymentViewSet, basename='payment')
+router.register(r'payments', views.PaymentViewSet, basename='payment') # Reverted prefix to 'payments'
 
-urlpatterns = router.urls
+urlpatterns = [
+    path('transfer-pending-to-available/', views.PaymentViewSet.as_view({'post': 'transfer_pending_to_available'}), name='transfer-pending-to-available'),
+]
+urlpatterns += router.urls
