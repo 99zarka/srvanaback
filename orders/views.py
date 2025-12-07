@@ -99,9 +99,12 @@ class OrderViewSet(viewsets.ModelViewSet):
             self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
         elif self.action == 'available_for_offer':
             self.permission_classes = [IsTechnicianUser]
-        elif self.action in ['accept_offer', 'decline_offer', 'release_funds', 'initiate_dispute', 'cancel_order']:
+        elif self.action in ['accept_offer', 'decline_offer', 'release_funds', 'cancel_order']:
             # Actions primarily for the client owner or admin
             self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin]
+        elif self.action == 'initiate_dispute':
+            # Allow client owner or assigned technician or admin to initiate dispute
+            self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
         elif self.action == 'offers':
             # Offers can be viewed by client owner, assigned technician, or admin
             self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
@@ -569,75 +572,99 @@ class OrderViewSet(viewsets.ModelViewSet):
             }
         }, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin])
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin | IsAdminUser])
     def initiate_dispute(self, request, order_id=None):
         """
-        Allows a client to initiate a dispute for an order.
+        Allows a client, assigned technician, or admin to initiate a dispute for an order.
         Transitions order status to 'DISPUTED' and creates a Dispute record.
-        Permissions: Authenticated Client User who owns the order.
+        Permissions: Authenticated Client User who owns the order,
+                     Authenticated Technician User who is assigned to the order, or Admin User.
         Usage: POST /api/orders/{order_id}/initiate-dispute/
-        Body: {"client_argument": "Technician did not complete the job as agreed."}
+        Body: {"argument": "Problem description."}
         """
         try:
             order = self.get_object()
         except Order.DoesNotExist:
             raise NotFound("Order not found.")
 
-        # Ensure the authenticated user is the client who owns the order
-        if order.client_user != request.user:
-            raise PermissionDenied("You are not the client for this order.")
+        # Ensure the authenticated user is either the client owner, assigned technician, or admin
+        user = request.user
+        if not (order.client_user == user or \
+                (order.technician_user == user and user.user_type.user_type_name == 'technician') or \
+                user.user_type.user_type_name == 'admin'):
+            raise PermissionDenied("You do not have permission to initiate a dispute for this order.")
 
         # Ensure the order is in a state where a dispute can be initiated
-        if order.order_status not in ['AWAITING_RELEASE', 'IN_PROGRESS', 'COMPLETED']:
-            raise ValidationError({'detail': f'Dispute can only be initiated for orders in "AWAITING_RELEASE", "IN_PROGRESS", or "COMPLETED" status. Current status: {order.order_status}'})
+        if order.order_status in ['DISPUTED', 'CANCELLED', 'REFUNDED', 'OPEN']: # No dispute for open, already disputed, or cancelled orders
+            raise ValidationError({'detail': f'Dispute cannot be initiated for orders in current status: {order.order_status}'})
 
-        client_argument = request.data.get('client_argument')
-        if not client_argument:
-            raise ValidationError({'client_argument': 'Client argument for dispute is required.'})
+        argument = request.data.get('argument')
+        if not argument:
+            raise ValidationError({'argument': 'Dispute argument is required.'})
         
-        # Ensure a technician is assigned
-        if not order.technician_user:
+        # Ensure a technician is assigned if it's not an admin initiating
+        if not order.technician_user and user.user_type.user_type_name != 'admin':
             raise ValidationError({'detail': 'Cannot initiate a dispute for an order without an assigned technician.'})
 
         with db_transaction.atomic():
             order.refresh_from_db() # Lock order row
 
-            # Create the Dispute record
-            dispute = Dispute.objects.create(
-                order=order,
-                initiator=order.client_user,
-                client_argument=client_argument,
-                status='OPEN'
-            )
+            # Determine who is the initiator for the dispute record
+            initiator_role = 'client' if order.client_user == user else ('technician' if order.technician_user == user else 'admin')
+
+            dispute_fields = {
+                'order': order,
+                'initiator': user,
+                'status': 'OPEN'
+            }
+            if initiator_role == 'client':
+                dispute_fields['client_argument'] = argument
+            elif initiator_role == 'technician':
+                dispute_fields['technician_argument'] = argument
+            else: # Admin can provide either, for simplicity, use admin_notes or a general field
+                dispute_fields['admin_notes'] = f'Admin initiated dispute: {argument}'
+            
+            dispute = Dispute.objects.create(**dispute_fields)
 
             # Update order status
             order.order_status = 'DISPUTED'
             order.save(update_fields=['order_status'])
 
-            # No transaction on dispute initiation, actual fund movement during resolution
-
-            # Notify technician and admin
-            create_notification(
-                user=order.technician_user,
-                notification_type='dispute_initiated',
-                title='Dispute Initiated',
-                message=f'Client {order.client_user.get_full_name()} has initiated a dispute for order #{order.order_id}.',
-                related_order=order
-            )
-            # Notify all admins (could be a specific admin group later)
+            # Send notifications
+            if order.client_user != user: # Notify client if they are not the initiator
+                create_notification(
+                    user=order.client_user,
+                    notification_type='dispute_initiated',
+                    title='Dispute Initiated',
+                    message=f'{user.get_full_name()} has initiated a dispute for your order #{order.order_id}.',
+                    related_order=order,
+                    related_dispute=dispute
+                )
+            if order.technician_user and order.technician_user != user: # Notify technician if they are not the initiator
+                create_notification(
+                    user=order.technician_user,
+                    notification_type='dispute_initiated',
+                    title='Dispute Initiated',
+                    message=f'{user.get_full_name()} has initiated a dispute for your task #{order.order_id}.',
+                    related_order=order,
+                    related_dispute=dispute
+                )
+            # Notify all admins
             admins = User.objects.filter(user_type__user_type_name='admin')
             for admin_user in admins:
-                create_notification(
-                    user=admin_user,
-                    notification_type='dispute_new',
-                    title='New Dispute',
-                    message=f'A new dispute has been initiated for order #{order.order_id} by client {order.client_user.get_full_name()}.',
-                    related_order=order
-                )
+                if admin_user != user: # Don't notify admin if they are the initiator
+                    create_notification(
+                        user=admin_user,
+                        notification_type='dispute_new',
+                        title='New Dispute',
+                        message=f'A new dispute has been initiated for order #{order.order_id} by {user.get_full_name()}.',
+                        related_order=order,
+                        related_dispute=dispute
+                    )
 
         serializer = self.get_serializer(order)
         return Response({
-            'message': 'Dispute initiated successfully. Admin and technician have been notified.',
+            'message': 'Dispute initiated successfully. Relevant parties have been notified.',
             'order': serializer.data,
             'dispute_id': dispute.dispute_id
         }, status=status.HTTP_200_OK)

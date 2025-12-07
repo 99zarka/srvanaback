@@ -110,7 +110,7 @@ class NotificationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Permissions: Authenticated User (owner) or Admin User.
     Usage: DELETE /api/notifications/{id}/
     """
-    queryset = Notification.objects.all()
+    queryset = Notification.objects.all().order_by('-created_at') # Order by created_at in descending order
     serializer_class = NotificationSerializer
     permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsUserOwnerOrAdmin)]
     owner_field = 'user'
