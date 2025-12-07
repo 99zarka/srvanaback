@@ -5,7 +5,7 @@ from django.db import transaction as db_transaction # Import for atomic operatio
 from .models import Order, ProjectOffer
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
-from .serializers import OrderSerializer, ProjectOfferSerializer
+from .serializers import OrderSerializer, ProjectOfferSerializer, PublicOrderSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsClientOwnerOrAdmin, IsTechnicianOwnerOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
 from notifications.models import Notification # Keep this for now, will replace usage with utils
@@ -98,7 +98,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
         elif self.action == 'available_for_offer':
-            self.permission_classes = [IsTechnicianUser]
+            # Changed to AllowAny for public access
+            self.permission_classes = [permissions.AllowAny] 
+        elif self.action == 'public_detail':
+            self.permission_classes = [permissions.AllowAny]
         elif self.action in ['accept_offer', 'decline_offer', 'release_funds', 'cancel_order']:
             # Actions primarily for the client owner or admin
             self.permission_classes = [IsAdminUser | IsClientOwnerOrAdmin]
@@ -131,6 +134,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             'project_offers__technician_user__user_type'
         ).order_by('-order_id')
 
+        # For 'available_for_offer' and 'public_detail' actions, always filter for OPEN orders with no assigned technician
+        if self.action in ['available_for_offer', 'public_detail']:
+            return base_queryset.filter(technician_user__isnull=True, order_status='OPEN')
+
+
         # For detail views (retrieve, update, destroy, and custom actions like accept_offer, mark_job_done, etc.)
         # always return the full queryset. Permissions will then handle whether the user can actually access/modify it.
         if self.detail or self.action in ['accept_offer', 'decline_offer', 'mark_job_done', 'release_funds', 'initiate_dispute', 'cancel_order', 'offers', 'start_job']: # Added start_job
@@ -138,7 +146,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         # For list actions, apply specific filtering based on user role
         if not user.is_authenticated:
-            return Order.objects.none() # Unauthenticated users see no orders in generic list
+            return Order.objects.none() # Unauthenticated users see no orders in generic list, handled above for 'available_for_offer'
 
         if user.user_type.user_type_name == 'admin':
             return base_queryset
@@ -182,15 +190,17 @@ class OrderViewSet(viewsets.ModelViewSet):
                 related_order=order
             )
 
-    @action(detail=False, methods=['get'], permission_classes=[IsTechnicianUser])
+    @action(detail=False, methods=['get'], permission_classes=[permissions.AllowAny])
     def available_for_offer(self, request):
         """
         Return orders that are available for technician offers.
         These are orders without an assigned technician and with status 'OPEN'.
         """
         user = request.user
-        if not user.is_authenticated or user.user_type.user_type_name != 'technician':
-            raise PermissionDenied("Only technicians can view available orders.")
+        # The permission_classes now allow any user, but the filtering below ensures only
+        # relevant orders are shown. If the user is authenticated as a technician,
+        # they still see the same list as intended previously.
+        # Removed explicit PermissionDenied check for technicians as AllowAny handles it.
 
         # Get orders without assigned technician and in OPEN status
         available_orders = Order.objects.filter(
@@ -213,6 +223,23 @@ class OrderViewSet(viewsets.ModelViewSet):
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(available_orders, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.AllowAny])
+    def public_detail(self, request, order_id=None):
+        """
+        Return details for a single public order (OPEN, no assigned technician).
+        Accessible by any user (authenticated or unauthenticated).
+        """
+        try:
+            # Get the object and then apply additional filters to ensure it's public
+            order = self.get_object()
+            if order.technician_user is not None or order.order_status != 'OPEN':
+                raise NotFound("Project not found or not publicly available.")
+        except Order.DoesNotExist:
+            raise NotFound("Project not found.")
+
+        serializer = PublicOrderSerializer(order)
         return Response(serializer.data)
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
@@ -1026,6 +1053,6 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.order_by('-order_id')[:int(limit)] # Sorted by order_id descending
         else:
             # Always order by creation date, most recent first
-            queryset = queryset.order_by('-order_id') # Sorted by order_id descending
+            queryset = queryset.by('-order_id') # Sorted by order_id descending
 
         return queryset

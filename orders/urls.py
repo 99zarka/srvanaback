@@ -14,6 +14,7 @@ urlpatterns = [
     path('', views.OrderViewSet.as_view({'get': 'list', 'post': 'create'}), name='order-list'),
     path('<int:order_id>/', views.OrderViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='order-detail'),
     path('available-for-offer/', views.OrderViewSet.as_view({'get': 'available_for_offer'}), name='order-available-for-offer'),
+    path('public-projects/<int:order_id>/', views.OrderViewSet.as_view({'get': 'public_detail'}), name='public-order-detail'),
     path('<int:order_id>/offers/', views.OrderViewSet.as_view({'get': 'offers'}), name='order-offers'),
 
     # Explicit URLs for OrderViewSet custom actions (order_id-specific)

@@ -22,6 +22,21 @@ class ProjectOfferDetailSerializer(serializers.ModelSerializer):
         model = ProjectOffer
         fields = ['offer_id', 'offered_price', 'offer_description', 'offer_date', 'status', 'technician_user']
 
+class PublicOrderSerializer(serializers.ModelSerializer):
+    client_user = PublicUserSerializer(read_only=True)
+    service = ServiceSerializer(read_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'order_id', 'service', 'client_user', 'problem_description',
+            'requested_location', 'scheduled_date', 'scheduled_time_start',
+            'scheduled_time_end', 'order_type', 'creation_timestamp', 'order_status',
+            'expected_price'
+        ]
+        read_only_fields = fields # All fields are read-only for public view
+
+
 class OrderSerializer(serializers.ModelSerializer):
     client_user = PublicUserSerializer(read_only=True)
     service = ServiceSerializer(read_only=True) # Changed from PrimaryKeyRelatedField
