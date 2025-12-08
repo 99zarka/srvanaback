@@ -5,7 +5,7 @@ from django.db import transaction as db_transaction # Import for atomic operatio
 from .models import Order, ProjectOffer
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
-from .serializers import OrderSerializer, ProjectOfferSerializer, PublicOrderSerializer
+from .serializers import OrderSerializer, ProjectOfferSerializer, ProjectOfferDetailSerializer, PublicOrderSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsClientOwnerOrAdmin, IsTechnicianOwnerOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
 from notifications.models import Notification # Keep this for now, will replace usage with utils
@@ -239,8 +239,22 @@ class OrderViewSet(viewsets.ModelViewSet):
         except Order.DoesNotExist:
             raise NotFound("Project not found.")
 
-        serializer = PublicOrderSerializer(order)
-        return Response(serializer.data)
+        # Serialize the order with public details
+        order_serializer = PublicOrderSerializer(order)
+
+        # Get and serialize the project offers for this order
+        project_offers = ProjectOffer.objects.filter(order=order).select_related(
+            'technician_user',
+            'technician_user__user_type'
+        ).order_by('-offer_date', '-offer_id')
+
+        offers_serializer = ProjectOfferDetailSerializer(project_offers, many=True, context={'request': request})
+
+        # Return both order details and offers
+        return Response({
+            'order': order_serializer.data,
+            'project_offers': offers_serializer.data
+        })
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
     def offers(self, request, order_id=None):
@@ -1053,6 +1067,6 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.order_by('-order_id')[:int(limit)] # Sorted by order_id descending
         else:
             # Always order by creation date, most recent first
-            queryset = queryset.by('-order_id') # Sorted by order_id descending
+            queryset = queryset.order_by('-order_id') # Sorted by order_id descending
 
         return queryset

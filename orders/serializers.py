@@ -36,20 +36,45 @@ class PublicOrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields # All fields are read-only for public view
 
+class ServiceField(serializers.Field):
+    """
+    Custom field that handles both input (service_id) and output (full service details)
+    """
+    def to_representation(self, value):
+        # For output: show full service details using ServiceSerializer
+        if value is None:
+            return None
+        return ServiceSerializer(value).data
+
+    def to_internal_value(self, data):
+        # For input: accept service_id and return the Service instance
+        if isinstance(data, int) or (isinstance(data, str) and data.isdigit()):
+            try:
+                return Service.objects.get(pk=int(data))
+            except Service.DoesNotExist:
+                raise serializers.ValidationError(f"Service with id {data} does not exist.")
+        elif isinstance(data, dict) and 'service_id' in data:
+            # Handle the case where frontend sends {'service_id': 34}
+            service_id = data['service_id']
+            try:
+                return Service.objects.get(pk=service_id)
+            except Service.DoesNotExist:
+                raise serializers.ValidationError(f"Service with id {service_id} does not exist.")
+        else:
+            raise serializers.ValidationError("Invalid service data. Expected service_id or service object.")
 
 class OrderSerializer(serializers.ModelSerializer):
     client_user = PublicUserSerializer(read_only=True)
-    service = ServiceSerializer(read_only=True) # Changed from PrimaryKeyRelatedField
+    service = ServiceField()  # Use custom field that handles both input and output
     associated_offer = serializers.SerializerMethodField()
     project_offers = ProjectOfferDetailSerializer(many=True, read_only=True) # Added to display all offers
-    
+
     # Define order_type as a CharField with choices for validation
     order_type = serializers.ChoiceField(choices=Order.ORDER_TYPE_CHOICES, required=True)
-    
+
     # Explicitly define final_price as a writable field (not read_only)
     final_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     expected_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
-
 
     def get_associated_offer(self, obj):
         # Prioritize an accepted offer regardless of order_type
@@ -68,8 +93,14 @@ class OrderSerializer(serializers.ModelSerializer):
             technician_pending_offer = next((offer for offer in obj.project_offers.all() if offer.offer_initiator == 'technician' and offer.status == 'pending'), None)
             if technician_pending_offer:
                 return ProjectOfferDetailSerializer(technician_pending_offer).data
-        
+
         return None # No associated offer found based on criteria
+
+    def to_internal_value(self, data):
+        # Handle service_id -> service field mapping for nested cases
+        if 'service_id' in data and 'service' not in data:
+            data['service'] = data.pop('service_id')
+        return super().to_internal_value(data)
 
     # Removed to_representation method as service is now directly serialized
 
@@ -86,7 +117,7 @@ class OrderSerializer(serializers.ModelSerializer):
 class ProjectOfferSerializer(serializers.ModelSerializer):
     technician_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.filter(user_type__user_type_name='technician'))
     offer_initiator = serializers.CharField(read_only=True)
-    order = NestedOrderSerializer()
+    order = serializers.PrimaryKeyRelatedField(queryset=Order.objects.all())
 
     class Meta:
         model = ProjectOffer
@@ -121,7 +152,7 @@ class ClientMakeOfferSerializer(serializers.ModelSerializer):
         request = self.context.get('request', None)
         if not request or not request.user.is_authenticated:
             raise ValidationError("Authentication required to create an offer.")
-        
+
         client_user = request.user
 
         if 'service' in order_data and isinstance(order_data['service'], Service):
@@ -131,7 +162,7 @@ class ClientMakeOfferSerializer(serializers.ModelSerializer):
         order_data['order_type'] = 'direct_hire' # ClientMakeOfferSerializer specifically creates direct_hire orders
         order_data['creation_timestamp'] = date.today()
         order_data['order_status'] = 'AWAITING_TECHNICIAN_RESPONSE'
-        
+
         # Set final_price in order_data using client_agreed_price
         order_data['final_price'] = client_agreed_price
 
