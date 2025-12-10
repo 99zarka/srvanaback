@@ -81,9 +81,7 @@ class PaymentMethodViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         user = self.request.user
         base_queryset = super().get_queryset()
 
-        if user.is_authenticated and user.user_type.user_type_name == 'admin':
-            return base_queryset
-        elif user.is_authenticated and user.user_type.user_type_name in ['client', 'technician']:
+        if user.is_authenticated and user.user_type.user_type_name in ['client', 'technician', 'admin']:
             return base_queryset.filter(user=user)
         else:
             return base_queryset.none() # Return none for unauthenticated, permissions will handle 401/403
