@@ -1,6 +1,7 @@
 from django.db import models
 from users.models import User
 from orders.models import Order
+from cloudinary.models import CloudinaryField
 
 class Dispute(models.Model):
     STATUS_CHOICES = [
@@ -25,8 +26,6 @@ class Dispute(models.Model):
     resolution = models.CharField(max_length=50, choices=RESOLUTION_CHOICES, null=True, blank=True)
     resolution_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True) # Renamed from initiated_date
-    # Removed resolved_amount_to_client and resolved_amount_to_technician as these amounts will be handled via Transactions
-    # Removed technician_user and admin_reviewer, as these are implicitly handled by the order and admin_notes.
 
     class Meta:
         db_table = 'DISPUTE'
@@ -39,3 +38,31 @@ class Dispute(models.Model):
 
     def __str__(self):
         return f"Dispute {self.dispute_id} for Order {self.order.order_id} - Status: {self.status}"
+
+class DisputeResponse(models.Model):
+    """
+    Model to store responses/replies in a dispute conversation between client and technician
+    """
+    RESPONSE_TYPE_CHOICES = [
+        ('CLIENT', 'Client'),
+        ('TECHNICIAN', 'Technician'),
+        ('ADMIN', 'Admin'),
+    ]
+
+    dispute = models.ForeignKey(Dispute, on_delete=models.CASCADE, related_name='responses')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='dispute_responses')
+    response_type = models.CharField(max_length=20, choices=RESPONSE_TYPE_CHOICES)
+    message = models.TextField()
+    file_url = CloudinaryField('dispute_response_files', null=True, blank=True)  # For Cloudinary file uploads
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'DISPUTE_RESPONSE'
+        ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['dispute', 'created_at']),
+            models.Index(fields=['sender', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"Response {self.id} in Dispute {self.dispute.dispute_id} - {self.response_type}"

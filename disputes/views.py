@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from django.db import transaction as db_transaction
 from django.utils import timezone
 from decimal import Decimal # Import Decimal
-from .models import Dispute
-from .serializers import DisputeSerializer
+from .models import Dispute, DisputeResponse
+from .serializers import DisputeSerializer, DisputeResponseSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsDisputeParticipantOrAdmin # Added IsDisputeParticipantOrAdmin
 from notifications.utils import create_notification
 from users.models import User
@@ -314,3 +314,89 @@ class DisputeViewSet(viewsets.ModelViewSet):
                 'pending_balance': technician_user.pending_balance,
             } if technician_user else None
         }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def add_response(self, request, dispute_id=None):
+        """
+        Allows a dispute participant (client or technician) to add a response to the dispute.
+        Permissions: Authenticated User (client or technician involved in the dispute)
+        Usage: POST /api/disputes/{dispute_id}/add_response/
+        Body: {"message": "Your response message here", "file_url": file_data}
+        """
+        try:
+            dispute = self.get_object()
+        except NotFound:
+            raise NotFound("Dispute not found.")
+
+        # Check if the user is a participant in the dispute
+        user = request.user
+        order = dispute.order
+
+        # Determine if user is client or technician
+        is_client = user == dispute.initiator  # initiator is the client in the dispute
+        is_technician = user == order.technician_user
+        is_admin = user.user_type.user_type_name == 'admin'
+
+        if not (is_client or is_technician or is_admin):
+            raise PermissionDenied("You are not authorized to respond to this dispute.")
+
+        # Determine response type based on user role
+        if is_client:
+            response_type = 'CLIENT'
+        elif is_technician:
+            response_type = 'TECHNICIAN'
+        else: # admin
+            response_type = 'ADMIN'
+
+        # Validate request data
+        message = request.data.get('message')
+        file_url = request.data.get('file_url')
+
+        if not message and not file_url:
+            raise ValidationError({'error': 'Either message or file is required.'})
+
+        # Create the dispute response
+        response = DisputeResponse.objects.create(
+            dispute=dispute,
+            sender=user,
+            response_type=response_type,
+            message=message,
+            file_url=file_url  # This will be handled by CloudinaryField
+        )
+
+        # Update dispute status to IN_REVIEW if it's currently OPEN
+        if dispute.status == 'OPEN':
+            dispute.status = 'IN_REVIEW'
+            dispute.save(update_fields=['status'])
+
+        # Send notification to other participants
+        participants_to_notify = []
+        if is_client and order.technician_user:
+            participants_to_notify.append(order.technician_user)
+        elif is_technician:
+            participants_to_notify.append(dispute.initiator)
+        elif is_admin:
+            # Notify both client and technician
+            participants_to_notify.append(dispute.initiator)
+            if order.technician_user:
+                participants_to_notify.append(order.technician_user)
+
+        for participant in participants_to_notify:
+            if participant != user:  # Don't notify the sender
+                create_notification(
+                    user=participant,
+                    notification_type='dispute_response',
+                    title='New Dispute Response',
+                    message=f'New response added to dispute #{dispute.dispute_id} for order #{order.order_id}',
+                    related_order=order,
+                    related_dispute=dispute
+                )
+
+        # Return the created response with updated dispute data
+        response_serializer = DisputeResponseSerializer(response)
+        dispute_serializer = DisputeSerializer(dispute)
+        return Response({
+            'message': 'Response added successfully.',
+            'response': response_serializer.data,
+            'dispute': dispute_serializer.data
+        }, status=status.HTTP_201_CREATED)
