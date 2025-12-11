@@ -84,7 +84,8 @@ class OrderViewSet(viewsets.ModelViewSet):
     ).prefetch_related(
         'project_offers',
         'project_offers__technician_user',
-        'project_offers__technician_user__user_type'
+        'project_offers__technician_user__user_type',
+        'disputes'
     ).order_by('-order_id')
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
@@ -131,7 +132,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         ).prefetch_related(
             'project_offers',
             'project_offers__technician_user',
-            'project_offers__technician_user__user_type'
+            'project_offers__technician_user__user_type',
+            'disputes'
         ).order_by('-order_id')
 
         # For 'available_for_offer' and 'public_detail' actions, always filter for OPEN orders with no assigned technician

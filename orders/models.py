@@ -54,6 +54,15 @@ class Order(models.Model):
 
     class Meta:
         db_table = 'ORDER' # Explicitly set table name to match SQL
+        indexes = [
+            models.Index(fields=['client_user', '-order_id']),  # For client orders list
+            models.Index(fields=['technician_user', '-order_id']),  # For technician orders list
+            models.Index(fields=['order_status', '-order_id']),  # For status-based queries
+            models.Index(fields=['creation_timestamp', '-order_id']),  # For chronological queries
+            models.Index(fields=['client_user', 'order_status', '-order_id']),  # For client + status queries
+            models.Index(fields=['technician_user', 'order_status', '-order_id']),  # For technician + status queries
+            models.Index(fields=['order_id']),  # For direct order lookups
+        ]
 
     def __str__(self):
         return f"Order {self.order_id} - {self.order_status}"
@@ -108,6 +117,12 @@ class ProjectOffer(models.Model):
 
     class Meta:
         db_table = 'PROJECT_OFFER'
+        indexes = [
+            models.Index(fields=['order', 'status']),  # For getting offers by order and status
+            models.Index(fields=['technician_user', 'status']),  # For technician's offers by status
+            models.Index(fields=['order', 'offer_initiator', 'status']),  # For order + initiator + status queries
+            models.Index(fields=['offer_date', '-offer_id']),  # For chronological queries
+        ]
 
     def __str__(self):
         return f"Offer {self.offer_id} for Order {self.order.order_id} by {self.technician_user.username}"

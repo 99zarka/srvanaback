@@ -30,6 +30,12 @@ class Dispute(models.Model):
 
     class Meta:
         db_table = 'DISPUTE'
+        indexes = [
+            models.Index(fields=['order', '-created_at']),  # For getting disputes by order, most recent first
+            models.Index(fields=['status', '-created_at']),  # For status-based queries
+            models.Index(fields=['initiator', '-created_at']),  # For initiator-based queries
+            models.Index(fields=['order', 'status']),  # For order + status queries
+        ]
 
     def __str__(self):
         return f"Dispute {self.dispute_id} for Order {self.order.order_id} - Status: {self.status}"

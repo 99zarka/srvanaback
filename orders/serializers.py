@@ -5,6 +5,7 @@ from users.models import User
 from users.serializers.user_serializers import PublicUserSerializer, UserTypeSerializer
 from services.models import Service
 from services.serializers import ServiceSerializer
+from disputes.serializers import DisputeSerializer
 from rest_framework.exceptions import ValidationError
 
 class NestedOrderSerializer(serializers.ModelSerializer):
@@ -68,6 +69,7 @@ class OrderSerializer(serializers.ModelSerializer):
     service = ServiceField()  # Use custom field that handles both input and output
     associated_offer = serializers.SerializerMethodField()
     project_offers = ProjectOfferDetailSerializer(many=True, read_only=True) # Added to display all offers
+    dispute = serializers.SerializerMethodField()
 
     # Define order_type as a CharField with choices for validation
     order_type = serializers.ChoiceField(choices=Order.ORDER_TYPE_CHOICES, required=True)
@@ -77,24 +79,50 @@ class OrderSerializer(serializers.ModelSerializer):
     expected_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
 
     def get_associated_offer(self, obj):
+        # Get prefetched project offers to avoid additional queries
+        if hasattr(obj, '_prefetched_objects_cache') and 'project_offers' in obj._prefetched_objects_cache:
+            project_offers = obj._prefetched_objects_cache['project_offers']
+        else:
+            # Fallback to accessing the prefetched relation
+            project_offers = obj.project_offers.all()
+        
+        # Convert to list once to avoid multiple iterations
+        offers_list = list(project_offers)
+        
         # Prioritize an accepted offer regardless of order_type
-        accepted_offer = next((offer for offer in obj.project_offers.all() if offer.status == 'accepted'), None)
+        accepted_offer = next((offer for offer in offers_list if offer.status == 'accepted'), None)
         if accepted_offer:
             return ProjectOfferDetailSerializer(accepted_offer).data
 
         # If no accepted offer, consider other types based on order_type
         if obj.order_type == 'direct_hire':
             # For direct hire, prioritize a client-initiated direct offer if no accepted offer
-            client_offer = next((offer for offer in obj.project_offers.all() if offer.offer_initiator == 'client' and offer.status == 'pending'), None)
+            client_offer = next((offer for offer in offers_list if offer.offer_initiator == 'client' and offer.status == 'pending'), None)
             if client_offer:
                 return ProjectOfferDetailSerializer(client_offer).data
         elif obj.order_type == 'service_request':
             # For service request, prioritize any pending technician offer if no accepted offer
-            technician_pending_offer = next((offer for offer in obj.project_offers.all() if offer.offer_initiator == 'technician' and offer.status == 'pending'), None)
+            technician_pending_offer = next((offer for offer in offers_list if offer.offer_initiator == 'technician' and offer.status == 'pending'), None)
             if technician_pending_offer:
                 return ProjectOfferDetailSerializer(technician_pending_offer).data
 
         return None # No associated offer found based on criteria
+
+    def get_dispute(self, obj):
+        # Get the most recent dispute for this order using prefetched data
+        # Check if disputes are prefetched in the _prefetched_objects_cache
+        if hasattr(obj, '_prefetched_objects_cache') and 'disputes' in obj._prefetched_objects_cache:
+            disputes = obj._prefetched_objects_cache['disputes']
+            if disputes:
+                # Find the most recent dispute from prefetched data
+                most_recent = max(disputes, key=lambda d: d.created_at)
+                return DisputeSerializer(most_recent).data
+        else:
+            # Fallback to database query if not prefetched (shouldn't happen with our optimization)
+            dispute = obj.disputes.order_by('-created_at').first()
+            if dispute:
+                return DisputeSerializer(dispute).data
+        return None
 
     def to_internal_value(self, data):
         # Handle service_id -> service field mapping for nested cases
@@ -110,7 +138,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'order_id', 'service', 'client_user', 'problem_description',
             'requested_location', 'scheduled_date', 'scheduled_time_start',
             'scheduled_time_end', 'order_type', 'creation_timestamp', 'order_status',
-            'technician_user', 'associated_offer', 'project_offers', 'final_price', 'expected_price'
+            'technician_user', 'associated_offer', 'project_offers', 'dispute', 'final_price', 'expected_price'
         ]
         read_only_fields = ['order_id', 'creation_timestamp', 'order_status', 'technician_user'] # Removed 'order_type'
 
