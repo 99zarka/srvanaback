@@ -180,6 +180,7 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000", # Allow React frontend to access the API
+    "http://localhost:3001", # Another common React dev server port
     "http://localhost:5173", # Allow React frontend to access the API
     "http://localhost:8000", # Default Django runserver port
     "http://127.0.0.1:3000",
