@@ -147,8 +147,8 @@ class DisputeViewSet(viewsets.ModelViewSet):
             raise ValidationError({'detail': 'Resolved amounts must be valid numbers for split payment.'})
 
         order = dispute.order
-        # initiator in Dispute model is the client
-        client_user = dispute.initiator
+        # Use the order's actual client user, not the dispute initiator
+        client_user = order.client_user
         # Technician is associated with the order, not directly the dispute model anymore
         technician_user = order.technician_user
         admin_user = request.user
@@ -214,8 +214,8 @@ class DisputeViewSet(viewsets.ModelViewSet):
                 if total_split_amount > amount_in_escrow:
                     raise ValidationError({'detail': 'Total split amounts exceed the escrowed amount.'})
                 
-                if client_user.in_escrow_balance < amount_in_escrow: # Check against full escrow as funds are distributed
-                        raise ValidationError({'detail': 'Error: Insufficient funds in client escrow for split payment. Contact support.'})
+                if client_user.in_escrow_balance < total_split_amount: # Check against total split amount, not full escrow
+                    raise ValidationError({'detail': 'Error: Insufficient funds in client escrow for split payment. Contact support.'})
 
                 # Refund client portion
                 if client_refund_amount > Decimal('0.00'):
