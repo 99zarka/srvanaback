@@ -85,7 +85,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         'project_offers',
         'project_offers__technician_user',
         'project_offers__technician_user__user_type',
-        'disputes'
+        'disputes',
+        'review'  # Add review prefetch to avoid N+1 queries
     ).order_by('-order_id')
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
@@ -133,7 +134,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             'project_offers',
             'project_offers__technician_user',
             'project_offers__technician_user__user_type',
-            'disputes'
+            'disputes',
+            'review'  # Add review prefetch to avoid N+1 queries
         ).order_by('-order_id')
 
         # For 'available_for_offer' and 'public_detail' actions, always filter for OPEN orders with no assigned technician
@@ -1054,7 +1056,8 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
             'project_offers',
             'project_offers__technician_user',
             'project_offers__technician_user__user_type',
-            'disputes'  # Add disputes prefetch for the has_dispute filter
+            'disputes',  # Add disputes prefetch for the has_dispute filter
+            'review'  # Add review prefetch to avoid N+1 queries
         )
 
         # Check if we want orders with disputes only

@@ -4,6 +4,7 @@ from rest_framework import serializers
 from .models import Review
 from .serializers import ReviewSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsReviewOwnerOrAdmin, IsReviewTechnicianOrAdmin
+from notifications.models import Notification
 
 class ReviewViewSet(viewsets.ModelViewSet):
     """
@@ -73,24 +74,40 @@ class ReviewViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             raise PermissionDenied("Authentication required to create reviews.")
 
-        if user.user_type.user_type_name == 'client':
-            requested_client_user_id = self.request.data.get('reviewer')
-            if requested_client_user_id and requested_client_user_id != user.user_id:
-                raise PermissionDenied("Clients can only create reviews for themselves.")
-            serializer.save(reviewer=user)
-        elif user.user_type.user_type_name == 'technician':
-            requested_reviewer_id = self.request.data.get('reviewer')
-            if requested_reviewer_id and requested_reviewer_id != user.user_id:
-                raise PermissionDenied("Technicians can only create reviews for themselves (as a client).")
-            if 'technician' not in self.request.data or 'order' not in self.request.data:
-                raise serializers.ValidationError({"detail": "Technician and order fields are required when a technician creates a review."})
-            serializer.save(reviewer=user)
-        elif user.user_type.user_type_name == 'admin':
-            if 'reviewer' not in self.request.data or 'technician' not in self.request.data:
-                raise serializers.ValidationError({"detail": "Reviewer and technician fields are required for admin users."})
-            serializer.save()
-        else:
-            raise PermissionDenied("Only clients, technicians, and admins can create reviews.")
+        # Save the review first to get the review instance
+        review = serializer.save(reviewer=user)
+
+        # Send notification to the technician who received the review
+        if review.technician and review.technician != user:  # Don't notify if reviewer and technician are the same user
+            try:
+                Notification.objects.create(
+                    user=review.technician,
+                    notification_type='review',
+                    title='لقد تلقيت مراجعة جديدة',
+                    message=f'لقد تلقت مراجعة جديدة من {user.get_full_name()} بتصنيف {review.rating}/5.',
+                    related_review=review,
+                    related_order=review.order
+                )
+            except Exception:
+                # Log the error but don't fail the review creation
+                pass
+
+        # Send notification to the client who placed the order (if different from reviewer)
+        if (review.order.client_user and 
+            review.order.client_user != user and 
+            review.order.client_user != review.technician):
+            try:
+                Notification.objects.create(
+                    user=review.order.client_user,
+                    notification_type='review',
+                    title='تم إنشاء مراجعة لطلبك',
+                    message=f'تم إنشاء مراجعة لطلبك من قبل {user.get_full_name()} بتصنيف {review.rating}/5.',
+                    related_review=review,
+                    related_order=review.order
+                )
+            except Exception:
+                # Log the error but don't fail the review creation
+                pass
 
 class WorkerReviewsViewSet(viewsets.ReadOnlyModelViewSet):
     """

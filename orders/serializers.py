@@ -6,6 +6,7 @@ from users.serializers.user_serializers import PublicUserSerializer, UserTypeSer
 from services.models import Service
 from services.serializers import ServiceSerializer
 from disputes.serializers import DisputeSerializer
+from reviews.models import Review
 from rest_framework.exceptions import ValidationError
 
 class NestedOrderSerializer(serializers.ModelSerializer):
@@ -70,6 +71,8 @@ class OrderSerializer(serializers.ModelSerializer):
     associated_offer = serializers.SerializerMethodField()
     project_offers = ProjectOfferDetailSerializer(many=True, read_only=True) # Added to display all offers
     dispute = serializers.SerializerMethodField()
+    review_rating = serializers.SerializerMethodField()
+    review_comment = serializers.SerializerMethodField()
 
     # Define order_type as a CharField with choices for validation
     order_type = serializers.ChoiceField(choices=Order.ORDER_TYPE_CHOICES, required=True)
@@ -77,6 +80,32 @@ class OrderSerializer(serializers.ModelSerializer):
     # Explicitly define final_price as a writable field (not read_only)
     final_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     expected_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+
+    def get_review_rating(self, obj):
+        # Get the review for this order using prefetched data
+        if hasattr(obj, '_prefetched_objects_cache') and 'review' in obj._prefetched_objects_cache:
+            review = obj._prefetched_objects_cache['review']
+            return review.rating if review else None
+        else:
+            # Fallback to accessing the review relation
+            try:
+                review = obj.review
+                return review.rating
+            except Review.DoesNotExist:
+                return None
+
+    def get_review_comment(self, obj):
+        # Get the review comment for this order using prefetched data
+        if hasattr(obj, '_prefetched_objects_cache') and 'review' in obj._prefetched_objects_cache:
+            review = obj._prefetched_objects_cache['review']
+            return review.comment if review else None
+        else:
+            # Fallback to accessing the review relation
+            try:
+                review = obj.review
+                return review.comment
+            except Review.DoesNotExist:
+                return None
 
     def get_associated_offer(self, obj):
         # Get prefetched project offers to avoid additional queries
@@ -138,7 +167,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'order_id', 'service', 'client_user', 'problem_description',
             'requested_location', 'scheduled_date', 'scheduled_time_start',
             'scheduled_time_end', 'order_type', 'creation_timestamp', 'order_status',
-            'technician_user', 'associated_offer', 'project_offers', 'dispute', 'final_price', 'expected_price'
+            'technician_user', 'associated_offer', 'project_offers', 'dispute', 'final_price', 'expected_price', 'review_rating', 'review_comment'
         ]
         read_only_fields = ['order_id', 'creation_timestamp', 'order_status', 'technician_user'] # Removed 'order_type'
 

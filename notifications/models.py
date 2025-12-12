@@ -2,6 +2,7 @@ from django.db import models
 from users.models import User
 from orders.models import Order
 from disputes.models import Dispute # Import Dispute model
+from reviews.models import Review # Import Review model
 
 class NotificationPreference(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_preferences')
@@ -23,6 +24,7 @@ class Notification(models.Model):
     related_order = models.ForeignKey(Order, on_delete=models.CASCADE, null=True, blank=True)
     related_offer = models.ForeignKey('orders.ProjectOffer', on_delete=models.CASCADE, null=True, blank=True) # Added related_offer field
     related_dispute = models.ForeignKey(Dispute, on_delete=models.CASCADE, null=True, blank=True) # Added related_dispute field
+    related_review = models.ForeignKey(Review, on_delete=models.CASCADE, null=True, blank=True, related_name='notifications') # Added related_review field
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
