@@ -52,7 +52,7 @@ class ServiceCategoryViewSet(viewsets.ModelViewSet):
     Usage: DELETE /api/services/categories/{id}/
     """
     pagination_class = ServiceCategoryPagination
-    queryset = ServiceCategory.objects.all()
+    queryset = ServiceCategory.objects.prefetch_related('service_set')
     serializer_class = ServiceCategorySerializer
 
     def get_permissions(self):
@@ -100,7 +100,7 @@ class ServiceViewSet(viewsets.ModelViewSet):
     Usage: DELETE /api/services/{id}/
     """
     pagination_class = ServicePagination
-    queryset = Service.objects.all()
+    queryset = Service.objects.select_related('category')
     serializer_class = ServiceSerializer
 
     def get_permissions(self):
