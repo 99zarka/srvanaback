@@ -150,6 +150,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return Order.objects.none() # Unauthenticated users see no orders in generic list, handled above for 'available_for_offer'
 
+        # Check if we want orders with disputes only
+        has_dispute = self.request.query_params.get('has_dispute')
+        if has_dispute and has_dispute.lower() == 'true':
+            base_queryset = base_queryset.filter(disputes__isnull=False).distinct()
+
         if user.user_type.user_type_name == 'admin':
             return base_queryset
         elif user.user_type.user_type_name == 'client':
@@ -1048,8 +1053,14 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
         ).prefetch_related(
             'project_offers',
             'project_offers__technician_user',
-            'project_offers__technician_user__user_type'
+            'project_offers__technician_user__user_type',
+            'disputes'  # Add disputes prefetch for the has_dispute filter
         )
+
+        # Check if we want orders with disputes only
+        has_dispute = self.request.query_params.get('has_dispute')
+        if has_dispute and has_dispute.lower() == 'true':
+            queryset = queryset.filter(disputes__isnull=False).distinct()
 
         # Apply status filtering if provided (use order_status, not status)
         status_filter = self.request.query_params.get('status__in')
