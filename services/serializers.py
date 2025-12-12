@@ -10,7 +10,15 @@ class ServiceCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ServiceSerializer(serializers.ModelSerializer):
-    category = ServiceCategorySerializer(read_only=True) # Nested serializer for category
+    # Remove the read_only=True to allow writing the category ID
+    # The category field will accept the category ID directly
+    category = ServiceCategorySerializer(read_only=True)
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=ServiceCategory.objects.all(), 
+        source='category', 
+        write_only=True,
+        required=True
+    )
 
     class Meta:
         model = Service

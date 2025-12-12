@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
 from services.models import ServiceCategory, Service
 from services.serializers import ServiceCategorySerializer, ServiceSerializer
-from api.permissions import IsAdminUser, IsAuthenticatedOrReadOnly
+from api.permissions import IsAdminUser
 
 class ServiceCategoryPagination(PageNumberPagination):
     page_size = 10
@@ -20,12 +20,12 @@ class ServiceCategoryViewSet(viewsets.ModelViewSet):
 
     list:
     Return a list of all service categories.
-    Permissions: Authenticated or Read-Only.
+    Permissions: Public access (no authentication required).
     Usage: GET /api/services/categories/
 
     retrieve:
     Return a specific service category by ID.
-    Permissions: Authenticated or Read-Only.
+    Permissions: Public access (no authentication required).
     Usage: GET /api/services/categories/{id}/
 
     create:
@@ -58,8 +58,8 @@ class ServiceCategoryViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdminUser]
-        else: # list, retrieve
-            self.permission_classes = [IsAuthenticatedOrReadOnly]
+        else: # list, retrieve - allow public access
+            self.permission_classes = []  # No permission class = public access
         return super().get_permissions()
 
 class ServiceViewSet(viewsets.ModelViewSet):
@@ -68,12 +68,12 @@ class ServiceViewSet(viewsets.ModelViewSet):
 
     list:
     Return a list of all services.
-    Permissions: Authenticated or Read-Only.
+    Permissions: Public access (no authentication required).
     Usage: GET /api/services/
 
     retrieve:
     Return a specific service by ID.
-    Permissions: Authenticated or Read-Only.
+    Permissions: Public access (no authentication required).
     Usage: GET /api/services/{id}/
 
     create:
@@ -106,6 +106,6 @@ class ServiceViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             self.permission_classes = [IsAdminUser]
-        else: # list, retrieve
-            self.permission_classes = [IsAuthenticatedOrReadOnly]
+        else: # list, retrieve - allow public access
+            self.permission_classes = []  # No permission class = public access
         return super().get_permissions()
