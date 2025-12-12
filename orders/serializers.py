@@ -71,8 +71,8 @@ class OrderSerializer(serializers.ModelSerializer):
     associated_offer = serializers.SerializerMethodField()
     project_offers = ProjectOfferDetailSerializer(many=True, read_only=True) # Added to display all offers
     dispute = serializers.SerializerMethodField()
-    review_rating = serializers.SerializerMethodField()
-    review_comment = serializers.SerializerMethodField()
+    review_rating = serializers.IntegerField(read_only=True, allow_null=True)
+    review_comment = serializers.CharField(read_only=True, allow_null=True, required=False)
 
     # Define order_type as a CharField with choices for validation
     order_type = serializers.ChoiceField(choices=Order.ORDER_TYPE_CHOICES, required=True)
@@ -81,31 +81,6 @@ class OrderSerializer(serializers.ModelSerializer):
     final_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     expected_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
 
-    def get_review_rating(self, obj):
-        # Get the review for this order using prefetched data
-        if hasattr(obj, '_prefetched_objects_cache') and 'review' in obj._prefetched_objects_cache:
-            review = obj._prefetched_objects_cache['review']
-            return review.rating if review else None
-        else:
-            # Fallback to accessing the review relation
-            try:
-                review = obj.review
-                return review.rating
-            except Review.DoesNotExist:
-                return None
-
-    def get_review_comment(self, obj):
-        # Get the review comment for this order using prefetched data
-        if hasattr(obj, '_prefetched_objects_cache') and 'review' in obj._prefetched_objects_cache:
-            review = obj._prefetched_objects_cache['review']
-            return review.comment if review else None
-        else:
-            # Fallback to accessing the review relation
-            try:
-                review = obj.review
-                return review.comment
-            except Review.DoesNotExist:
-                return None
 
     def get_associated_offer(self, obj):
         # Get prefetched project offers to avoid additional queries

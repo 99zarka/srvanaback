@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.db import transaction as db_transaction # Import for atomic operations
+from django.db import models
 from .models import Order, ProjectOffer
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -81,12 +82,15 @@ class OrderViewSet(viewsets.ModelViewSet):
         'technician_user', 
         'technician_user__user_type',
         'service'
+    ).annotate(
+        review_rating=models.F('review__rating'),
+        review_comment=models.F('review__comment')
     ).prefetch_related(
         'project_offers',
         'project_offers__technician_user',
         'project_offers__technician_user__user_type',
-        'disputes',
-        'review'  # Add review prefetch to avoid N+1 queries
+        'disputes'
+        # Remove 'review' from prefetch_related as we're using annotations
     ).order_by('-order_id')
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
@@ -130,12 +134,15 @@ class OrderViewSet(viewsets.ModelViewSet):
             'technician_user', 
             'technician_user__user_type',
             'service'
+        ).annotate(
+            review_rating=models.F('review__rating'),
+            review_comment=models.F('review__comment')
         ).prefetch_related(
             'project_offers',
             'project_offers__technician_user',
             'project_offers__technician_user__user_type',
-            'disputes',
-            'review'  # Add review prefetch to avoid N+1 queries
+            'disputes'
+            # Remove 'review' from prefetch_related as we're using annotations
         ).order_by('-order_id')
 
         # For 'available_for_offer' and 'public_detail' actions, always filter for OPEN orders with no assigned technician
@@ -1052,12 +1059,15 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
             'technician_user', 
             'technician_user__user_type',
             'service'
+        ).annotate(
+            review_rating=models.F('review__rating'),
+            review_comment=models.F('review__comment')
         ).prefetch_related(
             'project_offers',
             'project_offers__technician_user',
             'project_offers__technician_user__user_type',
-            'disputes',  # Add disputes prefetch for the has_dispute filter
-            'review'  # Add review prefetch to avoid N+1 queries
+            'disputes'  # Add disputes prefetch for the has_dispute filter
+            # Remove 'review' from prefetch_related as we're using annotations
         )
 
         # Check if we want orders with disputes only

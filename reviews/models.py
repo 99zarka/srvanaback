@@ -21,6 +21,10 @@ class Review(models.Model):
 
     class Meta:
         unique_together = ('order', 'reviewer')
+        indexes = [
+            models.Index(fields=['order']),  # Optimize JOIN with Order
+            models.Index(fields=['order', 'rating']),  # Optimize rating queries
+        ]
 
     def __str__(self):
         return f"Review for Order {self.order.id} by {self.reviewer.username}"
