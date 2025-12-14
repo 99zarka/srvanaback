@@ -1,12 +1,16 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
+from rest_framework.response import Response
+from rest_framework.decorators import action
+from django.db.models import Prefetch
+from django.core.paginator import Paginator
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
 from api.permissions import IsAdminUser, IsConversationParticipantOrAdmin, IsMessageSenderOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
 
-class ConversationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+class ConversationViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows Conversations to be viewed or edited.
 
@@ -43,14 +47,106 @@ class ConversationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Permissions: Authenticated User (participant) or Admin User.
     Usage: DELETE /api/chat/conversations/{id}/
     """
-    queryset = Conversation.objects.all()
     serializer_class = ConversationSerializer
-    permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsConversationParticipantOrAdmin)]
+    permission_classes = [permissions.IsAuthenticated & IsConversationParticipantOrAdmin]
 
-    def get_filtered_queryset(self, user, base_queryset):
-        if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
-            return base_queryset # Rely on object-level permissions
-        return base_queryset.filter(participants=user)
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Conversation.objects.prefetch_related(
+            'participants__user_type',
+            Prefetch(
+                'messages',
+                queryset=Message.objects.select_related('sender').order_by('-timestamp')[:1],
+                to_attr='prefetched_last_message'
+            )
+        ).order_by('-updated_at')
+        
+        # Apply filtering for list action - only show conversations user participates in
+        if self.action == 'list':
+            return queryset.filter(participants=user)
+        return queryset
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def messages(self, request, pk=None):
+        """
+        Get paginated messages for a conversation
+        Usage: GET /api/chat/conversations/{id}/messages/?page=1&limit=50
+        """
+        conversation = self.get_object()
+        user = request.user
+        
+        # Verify user is participant
+        if user.user_type.user_type_name != 'admin' and user not in conversation.participants.all():
+            raise PermissionDenied("You are not a participant in this conversation.")
+        
+        # Pagination
+        page = int(request.query_params.get('page', 1))
+        limit = min(int(request.query_params.get('limit', 50)), 100)  # Max 100 per page
+        
+        messages = Message.objects.filter(conversation=conversation).select_related(
+            'sender', 'sender__user_type'
+        ).order_by('-timestamp')  # Changed from '-timestamp' to 'timestamp' for chronological order
+        
+        paginator = Paginator(messages, limit)
+        messages_page = paginator.get_page(page)
+        
+        serializer = MessageSerializer(messages_page, many=True, context={'request': request})
+        
+        return Response({
+            'messages': serializer.data,
+            'pagination': {
+                'current_page': page,
+                'total_pages': paginator.num_pages,
+                'total_messages': paginator.count,
+                'has_next': messages_page.has_next(),
+                'has_previous': messages_page.has_previous(),
+            }
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated], url_path='get-with-user/(?P<user_id>[^/.]+)')
+    def get_with_user(self, request, user_id=None):
+        """
+        Get or create conversation with a specific user
+        Usage: GET /api/chat/conversations/get-with-user/{user_id}/
+        """
+        from users.models import User
+        current_user = request.user
+        target_user_id = user_id  # Now user_id comes from the URL path parameter
+        
+        if not target_user_id:
+            return Response({'error': 'User ID is required'}, status=400)
+        
+        if current_user.user_id == int(target_user_id):
+            return Response({'error': 'Cannot create conversation with yourself'}, status=400)
+        
+        try:
+            target_user = User.objects.get(user_id=target_user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'Target user not found'}, status=404)
+        
+        # Find existing conversation with these two users
+        conversations = Conversation.objects.filter(
+            participants=current_user
+        ).filter(
+            participants=target_user
+        ).filter(
+            participants__in=[current_user, target_user]
+        ).distinct()
+        
+        conversation = None
+        for conv in conversations:
+            if set(conv.participants.values_list('user_id', flat=True)) == {current_user.user_id, target_user.user_id}:
+                conversation = conv
+                break
+        
+        if not conversation:
+            # Create new conversation with two participants
+            conversation = Conversation.objects.create()
+            conversation.participants.add(current_user, target_user)
+            conversation.save()
+        
+        serializer = ConversationSerializer(conversation, context={'request': request})
+        return Response(serializer.data)
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -64,7 +160,7 @@ class ConversationViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         
         serializer.save()
 
-class MessageViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
+class MessageViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows Messages to be viewed or edited.
 
@@ -101,19 +197,33 @@ class MessageViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Permissions: Authenticated User (sender) or Admin User.
     Usage: DELETE /api/chat/messages/{id}/
     """
-    queryset = Message.objects.all()
     serializer_class = MessageSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Message.objects.select_related(
+            'sender', 'sender__user_type', 'conversation'
+        ).prefetch_related(
+            'sender__user_type'
+        ).order_by('-timestamp')
+        
+        # Apply filtering for list action - only show messages from conversations user participates in
+        if self.action == 'list':
+            return queryset.filter(conversation__participants=user)
+        return queryset
+    
 
     def get_permissions(self):
         if self.action in ['update', 'partial_update', 'destroy']:
-            self.permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsMessageSenderOrAdmin)]
+            self.permission_classes = [permissions.IsAuthenticated & IsMessageSenderOrAdmin]
         else: # list, retrieve, create
-            self.permission_classes = [IsAdminUser | (permissions.IsAuthenticated & IsConversationParticipantOrAdmin)]
+            self.permission_classes = [permissions.IsAuthenticated & IsConversationParticipantOrAdmin]
         return super().get_permissions()
 
     def get_filtered_queryset(self, user, base_queryset):
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             return base_queryset # Rely on object-level permissions
+        # Both admin and non-admin users should only see messages from conversations they participate in
         return base_queryset.filter(conversation__participants=user)
 
     def perform_create(self, serializer):
@@ -126,7 +236,7 @@ class MessageViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             raise serializers.ValidationError({"conversation": "This field is required."})
         
         try:
-            conversation = Conversation.objects.get(id=conversation_id)
+            conversation = Conversation.objects.prefetch_related('participants').get(id=conversation_id)
         except Conversation.DoesNotExist:
             raise serializers.ValidationError({"conversation": "Conversation does not exist."})
         
