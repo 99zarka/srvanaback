@@ -3,7 +3,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
 from django.core.paginator import Paginator
 from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
@@ -59,11 +59,13 @@ class ConversationViewSet(viewsets.ModelViewSet):
                 queryset=Message.objects.select_related('sender').order_by('-timestamp')[:1],
                 to_attr='prefetched_last_message'
             )
+        ).annotate(
+            message_count=Count('messages')
         ).order_by('-updated_at')
         
         # Apply filtering for list action - only show conversations user participates in
         if self.action == 'list':
-            return queryset.filter(participants=user)
+            return queryset.filter(participants=user, message_count__gt=0)
         return queryset
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
