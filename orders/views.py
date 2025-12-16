@@ -609,14 +609,18 @@ class OrderViewSet(viewsets.ModelViewSet):
             order.job_completion_timestamp = datetime.now()
             order.save(update_fields=['order_status', 'job_completion_timestamp'])
 
-            # Notify technician of fund release
-            create_notification(
-                user=technician_user,
-                notification_type='funds_released',
-                title='Funds Released',
-                message=f'Client {client_user.get_full_name()} has released funds for order #{order.order_id}. Your pending balance has been updated.',
-                related_order=order
-            )
+        # Notify technician of fund release
+        create_notification(
+            user=technician_user,
+            notification_type='funds_released',
+            title='Funds Released',
+            message=f'Client {client_user.get_full_name()} has released funds for order #{order.order_id}. Your pending balance has been updated.',
+            related_order=order
+        )
+
+        # Update technician's statistics
+        if technician_user:
+            technician_user.update_stats()
 
         serializer = self.get_serializer(order)
         return Response({

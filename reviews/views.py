@@ -109,6 +109,10 @@ class ReviewViewSet(viewsets.ModelViewSet):
                 # Log the error but don't fail the review creation
                 pass
 
+        # Update technician's statistics after review is created
+        if review.technician:
+            review.technician.update_stats()
+
 class WorkerReviewsViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint that allows technicians to view reviews they have received.

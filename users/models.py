@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.utils import timezone
 from cloudinary.models import CloudinaryField # Import CloudinaryField
+from django.db.models import Avg, Count, Q
 
 class UserType(models.Model):
     user_type_id = models.AutoField(primary_key=True)
@@ -99,3 +100,25 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self):
         return self.first_name
+
+    def calculate_num_jobs_completed(self):
+        """Calculate the number of completed jobs for this user (technician)."""
+        from orders.models import Order
+        return Order.objects.filter(
+            technician_user=self,
+            order_status='COMPLETED'
+        ).count()
+
+    def calculate_overall_rating(self):
+        """Calculate the overall rating based on all reviews received."""
+        from reviews.models import Review
+        avg_rating = Review.objects.filter(
+            technician=self
+        ).aggregate(avg=Avg('rating'))['avg']
+        return avg_rating if avg_rating is not None else None
+
+    def update_stats(self):
+        """Update both num_jobs_completed and overall_rating fields."""
+        self.num_jobs_completed = self.calculate_num_jobs_completed()
+        self.overall_rating = self.calculate_overall_rating()
+        self.save(update_fields=['num_jobs_completed', 'overall_rating'])
