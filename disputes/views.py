@@ -8,6 +8,7 @@ from .models import Dispute, DisputeResponse
 from .serializers import DisputeSerializer, DisputeResponseSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsDisputeParticipantOrAdmin # Added IsDisputeParticipantOrAdmin
 from notifications.utils import create_notification
+from notifications.arabic_translations import ARABIC_NOTIFICATIONS
 from users.models import User
 from transactions.models import Transaction
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
@@ -286,16 +287,16 @@ class DisputeViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=client_user,
                 notification_type='dispute_resolved',
-                title='Dispute Resolved',
-                message=f'Your dispute for order #{order.order_id} has been resolved. Resolution: {resolution}. Details: {admin_notes}',
+                title=ARABIC_NOTIFICATIONS['dispute_resolved_title'],
+                message=ARABIC_NOTIFICATIONS['dispute_resolved_message'].format(order_id=order.order_id, resolution=resolution, details=admin_notes),
                 related_order=order
             )
             if technician_user:
                 create_notification(
                     user=technician_user,
                     notification_type='dispute_resolved',
-                    title='Dispute Resolved',
-                    message=f'The dispute for order #{order.order_id} has been resolved. Resolution: {resolution}. Details: {admin_notes}',
+                    title=ARABIC_NOTIFICATIONS['dispute_resolved_title'],
+                    message=ARABIC_NOTIFICATIONS['dispute_resolved_message'].format(order_id=order.order_id, resolution=resolution, details=admin_notes),
                     related_order=order
                 )
 
@@ -386,8 +387,8 @@ class DisputeViewSet(viewsets.ModelViewSet):
                 create_notification(
                     user=participant,
                     notification_type='dispute_response',
-                    title='New Dispute Response',
-                    message=f'New response added to dispute #{dispute.dispute_id} for order #{order.order_id}',
+                    title=ARABIC_NOTIFICATIONS['dispute_response_title'],
+                    message=ARABIC_NOTIFICATIONS['dispute_response_message'].format(dispute_id=dispute.dispute_id, order_id=order.order_id),
                     related_order=order,
                     related_dispute=dispute
                 )

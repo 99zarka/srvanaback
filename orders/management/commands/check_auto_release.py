@@ -6,6 +6,7 @@ from users.models import User
 from decimal import Decimal # Import Decimal for precise calculations
 from transactions.models import Transaction
 from notifications.utils import create_notification
+from notifications.arabic_translations import ARABIC_NOTIFICATIONS
 
 class Command(BaseCommand):
     help = 'Checks for orders past their auto_release_date and automatically releases funds to technicians.'
@@ -42,8 +43,8 @@ class Command(BaseCommand):
                         create_notification(
                             user=client_user,
                             notification_type='auto_release_failed',
-                            title='Auto-Release Failed',
-                            message=f'Auto-release for order #{order.order_id} failed: No technician assigned. Please contact support.',
+                            title=ARABIC_NOTIFICATIONS['auto_release_failed_title'],
+                            message=ARABIC_NOTIFICATIONS['auto_release_failed_message'].format(order_id=order.order_id),
                             related_order=order
                         )
                         continue
@@ -56,8 +57,8 @@ class Command(BaseCommand):
                         create_notification(
                             user=client_user,
                             notification_type='auto_release_failed',
-                            title='Auto-Release Failed',
-                            message=f'Auto-release for order #{order.order_id} failed: Insufficient escrow. Please contact support.',
+                            title=ARABIC_NOTIFICATIONS['auto_release_failed_title'],
+                            message=ARABIC_NOTIFICATIONS['auto_release_failed_message'].format(order_id=order.order_id),
                             related_order=order
                         )
                         continue
@@ -90,15 +91,15 @@ class Command(BaseCommand):
                     create_notification(
                         user=technician_user,
                         notification_type='funds_auto_released',
-                        title='Funds Auto-Released',
-                        message=f'Funds for order #{order.order_id} have been automatically released by the system. Your pending balance has been updated.',
+                        title=ARABIC_NOTIFICATIONS['funds_auto_released_title'],
+                        message=ARABIC_NOTIFICATIONS['funds_auto_released_message'].format(order_id=order.order_id),
                         related_order=order
                     )
                     create_notification(
                         user=client_user,
                         notification_type='funds_auto_released',
-                        title='Funds Auto-Released',
-                        message=f'Funds for order #{order.order_id} have been automatically released to {technician_user.get_full_name()}.',
+                        title=ARABIC_NOTIFICATIONS['funds_auto_released_title'],
+                        message=ARABIC_NOTIFICATIONS['funds_auto_released_to_tech_message'].format(order_id=order.order_id, technician_name=technician_user.get_full_name()),
                         related_order=order
                     )
                     
@@ -113,8 +114,8 @@ class Command(BaseCommand):
                     create_notification(
                         user=admin_user,
                         notification_type='system_error',
-                        title='Auto-Release System Error',
-                        message=f'An error occurred during auto-release for order #{order.order_id}: {e}',
+                        title=ARABIC_NOTIFICATIONS['system_error_title'],
+                        message=ARABIC_NOTIFICATIONS['system_error_message'].format(order_id=order.order_id, error=str(e)),
                         related_order=order
                     )
 

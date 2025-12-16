@@ -10,6 +10,7 @@ from orders.models import Order, ProjectOffer
 from orders.serializers import OrderSerializer, ClientMakeOfferSerializer, ProjectOfferSerializer
 from notifications.models import Notification
 from notifications.utils import create_notification
+from notifications.arabic_translations import ARABIC_NOTIFICATIONS
 from datetime import date
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from services.models import Service
@@ -192,8 +193,8 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             create_notification(
                 user=technician_user,
                 notification_type='new_direct_offer',
-                title='New Direct Offer Received',
-                message=f'User {offer_initiator_user.get_full_name()} has made a direct offer for order #{order.order_id}.',
+                title=ARABIC_NOTIFICATIONS['new_direct_offer_title'],
+                message=ARABIC_NOTIFICATIONS['new_direct_offer_message'].format(user_name=offer_initiator_user.get_full_name(), order_id=order.order_id),
                 related_order=order,
                 related_offer=offer
             )
@@ -250,8 +251,8 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             create_notification(
                 user=order.client_user,
                 notification_type=notification_type,
-                title=notification_title,
-                message=notification_message,
+                title=ARABIC_NOTIFICATIONS['direct_offer_accepted_title'],
+                message=ARABIC_NOTIFICATIONS['direct_offer_accepted_message'].format(technician_name=technician_user.get_full_name(), order_id=order.order_id),
                 related_order=order,
                 related_offer=offer
             )
@@ -275,8 +276,8 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             create_notification(
                 user=order.client_user,
                 notification_type=notification_type,
-                title=notification_title,
-                message=notification_message,
+                title=ARABIC_NOTIFICATIONS['direct_offer_rejected_title'],
+                message=ARABIC_NOTIFICATIONS['direct_offer_rejected_message'].format(technician_name=technician_user.get_full_name(), order_id=order.order_id, reason=rejection_reason),
                 related_order=order,
                 related_offer=offer
             )

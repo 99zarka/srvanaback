@@ -11,6 +11,7 @@ from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsClien
 from api.mixins import OwnerFilteredQuerysetMixin
 from notifications.models import Notification # Keep this for now, will replace usage with utils
 from notifications.utils import create_notification # Import the helper function
+from notifications.arabic_translations import ARABIC_NOTIFICATIONS
 from users.models import User # Needed for notifying all technicians and for balance updates
 from transactions.models import Transaction # Import Transaction model for escrow operations
 from disputes.models import Dispute # Import Dispute model
@@ -195,8 +196,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=user,
                 notification_type='order_created',
-                title='Order Created Successfully',
-                message=f'Your order #{order.order_id} has been created and is awaiting offers.',
+                title=ARABIC_NOTIFICATIONS['order_created_title'],
+                message=ARABIC_NOTIFICATIONS['order_created_message'].format(order_id=order.order_id),
                 related_order=order
             )
         
@@ -206,8 +207,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=tech_user,
                 notification_type='new_project_available',
-                title='New Project Available',
-                message=f'A new project (#{order.order_id}) has been posted that might interest you!',
+                title=ARABIC_NOTIFICATIONS['new_project_available_title'],
+                message=ARABIC_NOTIFICATIONS['new_project_available_message'].format(order_id=order.order_id),
                 related_order=order
             )
 
@@ -423,8 +424,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=offer_to_decline.technician_user,
                 notification_type='offer_declined',
-                title='Offer Declined',
-                message=f'Your offer for order #{order.order_id} has been declined by the client.',
+                title=ARABIC_NOTIFICATIONS['offer_declined_title'],
+                message=ARABIC_NOTIFICATIONS['offer_declined_message'].format(order_id=order.order_id),
                 related_order=order
             )
             
@@ -441,8 +442,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=accepted_offer.technician_user,
                 notification_type='offer_accepted',
-                title='Offer Accepted',
-                message=f'Your offer for order #{order.order_id} has been accepted.',
+                title=ARABIC_NOTIFICATIONS['offer_accepted_title'],
+                message=ARABIC_NOTIFICATIONS['offer_accepted_message'].format(order_id=order.order_id),
                 related_order=order
             )
 
@@ -452,8 +453,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 create_notification(
                     user=rejected_offer.technician_user,
                     notification_type='offer_rejected',
-                    title='Offer Rejected',
-                    message=f'Your offer for order #{order.order_id} has been rejected.',
+                    title=ARABIC_NOTIFICATIONS['offer_rejected_title'],
+                    message=ARABIC_NOTIFICATIONS['offer_rejected_message'].format(order_id=order.order_id),
                     related_order=order
                 )
 
@@ -461,8 +462,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=order.client_user,
                 notification_type='offer_accepted',
-                title='Offer Accepted',
-                message=f'You have accepted an offer for order #{order.order_id}.',
+                title=ARABIC_NOTIFICATIONS['offer_accepted_client_title'],
+                message=ARABIC_NOTIFICATIONS['offer_accepted_client_message'].format(order_id=order.order_id),
                 related_order=order
             )
         except Exception as e:
@@ -497,8 +498,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=order.client_user,
                 notification_type='job_started',
-                title='Job Started',
-                message=f'Technician {order.technician_user.get_full_name()} has started working on order #{order.order_id}.',
+                title=ARABIC_NOTIFICATIONS['job_started_title'],
+                message=ARABIC_NOTIFICATIONS['job_started_message'].format(technician_name=order.technician_user.get_full_name(), order_id=order.order_id),
                 related_order=order
             )
         
@@ -540,8 +541,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=order.client_user,
                 notification_type='job_done',
-                title='Job Marked As Done',
-                message=f'Technician {order.technician_user.get_full_name()} has marked order #{order.order_id} as done. Please review and release funds.',
+                title=ARABIC_NOTIFICATIONS['job_done_title'],
+                message=ARABIC_NOTIFICATIONS['job_done_message'].format(technician_name=order.technician_user.get_full_name(), order_id=order.order_id),
                 related_order=order
             )
 
@@ -613,8 +614,8 @@ class OrderViewSet(viewsets.ModelViewSet):
         create_notification(
             user=technician_user,
             notification_type='funds_released',
-            title='Funds Released',
-            message=f'Client {client_user.get_full_name()} has released funds for order #{order.order_id}. Your pending balance has been updated.',
+            title=ARABIC_NOTIFICATIONS['funds_released_title'],
+            message=ARABIC_NOTIFICATIONS['funds_released_message'].format(client_name=client_user.get_full_name(), order_id=order.order_id),
             related_order=order
         )
 
@@ -701,8 +702,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 create_notification(
                     user=order.client_user,
                     notification_type='dispute_initiated',
-                    title='Dispute Initiated',
-                    message=f'{user.get_full_name()} has initiated a dispute for your order #{order.order_id}.',
+                    title=ARABIC_NOTIFICATIONS['dispute_initiated_title'],
+                    message=ARABIC_NOTIFICATIONS['dispute_initiated_message'].format(user_name=user.get_full_name(), order_id=order.order_id),
                     related_order=order,
                     related_dispute=dispute
                 )
@@ -710,8 +711,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                 create_notification(
                     user=order.technician_user,
                     notification_type='dispute_initiated',
-                    title='Dispute Initiated',
-                    message=f'{user.get_full_name()} has initiated a dispute for your task #{order.order_id}.',
+                    title=ARABIC_NOTIFICATIONS['dispute_initiated_title'],
+                    message=ARABIC_NOTIFICATIONS['dispute_initiated_message'].format(user_name=user.get_full_name(), order_id=order.order_id),
                     related_order=order,
                     related_dispute=dispute
                 )
@@ -722,8 +723,8 @@ class OrderViewSet(viewsets.ModelViewSet):
                     create_notification(
                         user=admin_user,
                         notification_type='dispute_new',
-                        title='New Dispute',
-                        message=f'A new dispute has been initiated for order #{order.order_id} by {user.get_full_name()}.',
+                        title=ARABIC_NOTIFICATIONS['dispute_new_title'],
+                        message=ARABIC_NOTIFICATIONS['dispute_new_message'].format(order_id=order.order_id, user_name=user.get_full_name()),
                         related_order=order,
                         related_dispute=dispute
                     )
@@ -786,13 +787,13 @@ class OrderViewSet(viewsets.ModelViewSet):
                     payment_method='Escrow'
                 )
                 order.order_status = 'REFUNDED'
-                message_to_client = f'Order #{order.order_id} has been cancelled, and {amount_in_escrow} USD refunded to your available balance.'
-                message_to_technician = f'Order #{order.order_id} has been cancelled by the client/admin. Funds ({amount_in_escrow} USD) have been refunded to the client.'
+                message_to_client = ARABIC_NOTIFICATIONS['order_cancelled_refund_message'].format(order_id=order.order_id, amount=amount_in_escrow)
+                message_to_technician = ARABIC_NOTIFICATIONS['order_cancelled_tech_message'].format(order_id=order.order_id, amount=amount_in_escrow)
             else:
                 # If no funds in escrow (order was 'OPEN')
                 order.order_status = 'CANCELLED'
-                message_to_client = f'Order #{order.order_id} has been cancelled.'
-                message_to_technician = f'Order #{order.order_id} has been cancelled by the client/admin.'
+                message_to_client = ARABIC_NOTIFICATIONS['order_cancelled_no_funds_message'].format(order_id=order.order_id)
+                message_to_technician = ARABIC_NOTIFICATIONS['order_cancelled_tech_message'].format(order_id=order.order_id, amount='0.00')
 
             order.save(update_fields=['order_status'])
 
@@ -800,7 +801,7 @@ class OrderViewSet(viewsets.ModelViewSet):
             create_notification(
                 user=client_user,
                 notification_type='order_cancelled',
-                title='Order Cancelled',
+                title=ARABIC_NOTIFICATIONS['order_cancelled_title'],
                 message=message_to_client,
                 related_order=order
             )
@@ -808,7 +809,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 create_notification(
                     user=technician_user,
                     notification_type='order_cancelled',
-                    title='Order Cancelled',
+                    title=ARABIC_NOTIFICATIONS['order_cancelled_title'],
                     message=message_to_technician,
                     related_order=order
                 )
@@ -926,13 +927,13 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             
             # Send notification to client
             try:
-                create_notification(
-                    user=offer.order.client_user,
-                    notification_type='new_offer',
-                    title='New Offer Received',
-                    message=f'A new offer has been made for your order #{offer.order.order_id}.',
-                    related_order=offer.order
-                )
+                    create_notification(
+                        user=offer.order.client_user,
+                        notification_type='new_offer',
+                        title=ARABIC_NOTIFICATIONS['new_offer_received_title'],
+                        message=ARABIC_NOTIFICATIONS['new_offer_received_message'].format(order_id=offer.order.order_id),
+                        related_order=offer.order
+                    )
             except Exception as e:
                 print(f"Error sending notification: {e}")
                 
