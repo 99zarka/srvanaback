@@ -164,6 +164,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         if has_dispute and has_dispute.lower() == 'true':
             base_queryset = base_queryset.filter(disputes__isnull=False).distinct()
 
+        # Add order_status filter
+        order_status = self.request.query_params.get('order_status')
+        if order_status:
+            base_queryset = base_queryset.filter(order_status=order_status)
+
         if user.user_type.user_type_name == 'admin':
             return base_queryset
         elif user.user_type.user_type_name == 'client':
@@ -1086,6 +1091,11 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
         if order_status_filter:
             status_list = [status.strip() for status in order_status_filter.split(',')]
             queryset = queryset.filter(order_status__in=status_list)
+
+        # Add single order_status filter for WorkerTasksViewSet
+        order_status = self.request.query_params.get('order_status')
+        if order_status:
+            queryset = queryset.filter(order_status=order_status)
 
         # Apply limit if provided - must do this before ordering
         limit = self.request.query_params.get('limit')
