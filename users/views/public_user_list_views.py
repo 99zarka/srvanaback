@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from users.models import User
 from users.serializers.user_serializers import PublicUserSerializer
+from django.db.models import Q, F, Case, When, Value, FloatField, DecimalField
+from django.db.models.functions import Coalesce
 
 class PublicUserPagination(PageNumberPagination):
     page_size = 10
@@ -29,9 +31,6 @@ class PublicUserViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Apply technician-specific filters only if user_type is specifically 'technician'
         if user_type_param and user_type_param.lower() == 'technician':
-            # Reorder for technicians based on rating and jobs
-            queryset = queryset.order_by('-overall_rating', '-num_jobs_completed')
-
             specialization = self.request.query_params.get('specialization')
             if specialization and specialization != 'all':
                 queryset = queryset.filter(specialization__icontains=specialization)
@@ -47,5 +46,24 @@ class PublicUserViewSet(viewsets.ReadOnlyModelViewSet):
                     queryset = queryset.filter(overall_rating__gte=min_rating)
                 except ValueError:
                     pass
+
+            # Handle sorting
+            sort_by = self.request.query_params.get('sort_by')
+            if sort_by == 'rating':
+                # Sort by rating descending, treating NULL as 0 to put them at the end
+                # Use DecimalField output_field to match the overall_rating field type
+                queryset = queryset.annotate(
+                    effective_rating=Coalesce('overall_rating', Value(0.0), output_field=DecimalField())
+                ).order_by('-effective_rating', '-num_jobs_completed')
+            elif sort_by == 'jobs':
+                # Sort by jobs completed descending, put NULL values at the end
+                queryset = queryset.order_by('-num_jobs_completed', '-overall_rating')
+            elif sort_by == 'name':
+                queryset = queryset.order_by('first_name', 'last_name')
+            else:
+                # Default ordering for technicians - treat NULL as 0 for consistent sorting
+                queryset = queryset.annotate(
+                    effective_rating=Coalesce('overall_rating', Value(0.0), output_field=DecimalField())
+                ).order_by('-effective_rating', '-num_jobs_completed')
         
         return queryset
