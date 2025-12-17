@@ -55,7 +55,7 @@ INSTALLED_APPS = [
     'addresses',
     'payments',
     'notifications',
-     'reviews',
+    'reviews',
      'issue_reports',
      'transactions',
      'disputes', # New app for dispute management
@@ -63,7 +63,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders', # Add corsheaders
     'drf_yasg', # Added for API documentation
-    'filesupload' # New app for file uploads
+    'filesupload', # New app for file uploads
+    'ai', # AI chat app
 ]
 
 # Cloudinary Configuration

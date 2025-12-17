@@ -58,4 +58,5 @@ urlpatterns = [
     path('api-auth/', include('rest_framework.urls')),
     path('api/disputes/', include('disputes.urls')),
     path('api/files/', include('filesupload.urls')), # Include filesupload app URLs
+    path('api/ai/', include('ai.urls')), # Include AI chat app URLs
 ]
