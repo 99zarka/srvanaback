@@ -105,7 +105,7 @@ class TransactionTests(APITestCase):
             'destination_user': self.client_user.user_id,
             'transaction_type': 'DEPOSIT',
             'amount': '50.00',
-            'currency': 'USD',
+            'currency': 'EGP',
             'payment_method': 'Credit Card'
         }
         response = self.admin_api.post(self.transaction_list_url, data, format='json')
@@ -127,7 +127,7 @@ class TransactionTests(APITestCase):
             'order': self.order.order_id,
             'transaction_type': 'ESCROW_HOLD',
             'amount': '100.00',
-            'currency': 'USD',
+            'currency': 'EGP',
             'payment_method': 'Available Balance'
         }
         response = self.admin_api.post(self.transaction_list_url, data, format='json')
@@ -151,7 +151,7 @@ class TransactionTests(APITestCase):
             'dispute': self.dispute.dispute_id,
             'transaction_type': 'DISPUTE_PAYOUT',
             'amount': '75.00',
-            'currency': 'USD',
+            'currency': 'EGP',
             'payment_method': 'Escrow'
         }
         response = self.admin_api.post(self.transaction_list_url, data, format='json')

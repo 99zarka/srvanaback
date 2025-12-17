@@ -78,7 +78,7 @@ class Command(BaseCommand):
                         transaction_type='escrow_release',
                         amount=amount_to_release,
                         status='completed',
-                        currency='USD',
+                        currency='EGP',
                         # description field removed as it does not exist in Transaction model
                     )
 

@@ -194,7 +194,7 @@ class PaymentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
                 destination_user=user,
                 transaction_type='DEPOSIT',
                 amount=amount,
-                currency='USD',
+                currency='EGP',
                 payment_method=payment_method # Pass the PaymentMethod object directly
             )
         return Response({
@@ -238,7 +238,7 @@ class PaymentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
                 destination_user=user,
                 transaction_type='WITHDRAWAL',
                 amount=amount,
-                currency='USD',
+                currency='EGP',
                 payment_method=payment_method # Pass the PaymentMethod object directly
             )
         return Response({
@@ -277,7 +277,7 @@ class PaymentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
                 destination_user=user,
                 transaction_type='PENDING_TO_AVAILABLE_TRANSFER',
                 amount=amount_to_transfer,
-                currency='USD',
+                currency='EGP',
             )
 
         return Response({

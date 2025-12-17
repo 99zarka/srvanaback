@@ -361,7 +361,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order=order,
                 transaction_type='ESCROW_HOLD',
                 amount=offered_price,
-                currency='USD',
+                currency='EGP',
                 payment_method='Available Balance'
             )
 
@@ -601,7 +601,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 order=order,
                 transaction_type='ESCROW_RELEASE',
                 amount=amount_to_release,
-                currency='USD',
+                currency='EGP',
                 payment_method='Escrow'
             )
 
@@ -783,7 +783,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                     order=order,
                     transaction_type='CANCEL_REFUND',
                     amount=amount_in_escrow,
-                    currency='USD',
+                currency='EGP',
                     payment_method='Escrow'
                 )
                 order.order_status = 'REFUNDED'

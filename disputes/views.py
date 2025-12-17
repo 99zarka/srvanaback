@@ -182,7 +182,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
                         dispute=dispute,
                         transaction_type='DISPUTE_REFUND',
                         amount=amount_in_escrow,
-                        currency='USD',
+                        currency='EGP',
                         payment_method='Escrow'
                     )
                 order.order_status = 'REFUNDED'
@@ -205,7 +205,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
                         dispute=dispute,
                         transaction_type='DISPUTE_PAYOUT',
                         amount=amount_in_escrow,
-                        currency='USD',
+                        currency='EGP',
                         payment_method='Escrow'
                     )
                 order.order_status = 'COMPLETED'
@@ -230,7 +230,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
                         dispute=dispute,
                         transaction_type='DISPUTE_REFUND',
                         amount=client_refund_amount,
-                        currency='USD',
+                        currency='EGP',
                         payment_method='Escrow'
                     )
 
@@ -248,7 +248,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
                         dispute=dispute,
                         transaction_type='DISPUTE_PAYOUT',
                         amount=technician_payout_amount,
-                        currency='USD',
+                        currency='EGP',
                         payment_method='Escrow'
                     )
                 
@@ -267,7 +267,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
                         dispute=dispute,
                         transaction_type='DISPUTE_REFUND', # Or a specific 'DISPUTE_REMAINDER'
                         amount=remaining_escrow,
-                        currency='USD',
+                        currency='EGP',
                         payment_method='Escrow'
                     )
 

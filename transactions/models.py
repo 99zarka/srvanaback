@@ -21,7 +21,7 @@ class Transaction(models.Model):
     dispute = models.ForeignKey(Dispute, on_delete=models.SET_NULL, null=True, blank=True, related_name='transactions')
     transaction_type = models.CharField(max_length=50, choices=TRANSACTION_TYPE_CHOICES)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=3, default='USD')
+    currency = models.CharField(max_length=3, default='EGP')
     # Removed status choices as per implementation plan, transactions are typically either created or not.
     payment_method = models.CharField(max_length=255, null=True, blank=True) # e.g., 'Credit Card', 'Wallet'
     transaction_id = models.CharField(max_length=255, null=True, blank=True) # From payment gateway, not necessarily unique across all transactions (e.g., refunds)
