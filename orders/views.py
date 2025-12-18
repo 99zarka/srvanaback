@@ -1037,9 +1037,11 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
     Return a list of orders assigned to the authenticated technician.
     Supports filtering by order_status using order_status__in parameter (e.g., ?order_status__in=pending,in_progress)
     Supports limiting results using limit parameter (e.g., ?limit=3)
+    Supports pagination using page and page_size parameters (e.g., ?page=1&page_size=10)
     Permissions: Authenticated Technician User only.
     Usage: GET /api/orders/worker-tasks/
     Usage: GET /api/orders/worker-tasks/?order_status__in=pending,in_progress&limit=3
+    Usage: GET /api/orders/worker-tasks/?has_dispute=true&page=1&page_size=10
 
     retrieve:
     Return a specific order assigned to the authenticated technician.
@@ -1048,6 +1050,7 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = OrderSerializer
     lookup_field = 'order_id'
+    pagination_class = OrderPagination
 
     def get_permissions(self):
         self.permission_classes = [IsTechnicianUser]
