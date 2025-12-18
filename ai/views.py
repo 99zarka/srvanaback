@@ -169,7 +169,7 @@ Please provide a concise, professional proposal in Arabic (maximum 100 words) th
 
         # Use the AI client to generate the proposal
         messages = [{"role": "user", "content": prompt}]
-        model = "openrouter-x-ai/grok-code-fast-1"
+        model = "openrouter-google/gemini-2.0-flash-exp:free"
         response_content = AIClient.call_api(model, messages)
 
         # Parse the response to extract proposal and price

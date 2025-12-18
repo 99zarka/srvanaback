@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, pagination
 from rest_framework.exceptions import PermissionDenied
 from rest_framework import serializers
 from rest_framework.response import Response
@@ -9,6 +9,14 @@ from .models import Conversation, Message
 from .serializers import ConversationSerializer, MessageSerializer
 from api.permissions import IsAdminUser, IsConversationParticipantOrAdmin, IsMessageSenderOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
+
+class DynamicPageSizePagination(pagination.PageNumberPagination):
+    """
+    Custom pagination class that respects the page_size parameter from the URL.
+    Falls back to a default page size if not specified.
+    """
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class ConversationViewSet(viewsets.ModelViewSet):
     """
@@ -49,6 +57,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     """
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated & IsConversationParticipantOrAdmin]
+    pagination_class = DynamicPageSizePagination
 
     def get_queryset(self):
         user = self.request.user
