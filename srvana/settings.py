@@ -14,6 +14,9 @@ from pathlib import Path
 import sys
 import os
 import cloudinary
+from dotenv import load_dotenv
+
+load_dotenv() # Load environment variables from .env file
 from datetime import timedelta # Import timedelta here for SIMPLE_JWT
 
 # Determine if running in a production environment via an environment variable
@@ -308,3 +311,8 @@ DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.CloudinaryMediaStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'users.User'
+# Paymob Configuration
+PAYMOB_API_KEY = os.environ.get('PAYMOB_API_KEY')
+PAYMOB_INTEGRATION_ID = os.environ.get('PAYMOB_INTEGRATION_ID')
+PAYMOB_IFRAME_ID = os.environ.get('PAYMOB_IFRAME_ID')
+PAYMOB_HMAC_SECRET = os.environ.get('PAYMOB_HMAC_SECRET')

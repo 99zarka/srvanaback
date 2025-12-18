@@ -4,7 +4,7 @@ from . import views
 
 router = DefaultRouter()
 router.register(r'paymentmethods', views.PaymentMethodViewSet, basename='paymentmethod')
-router.register(r'payments', views.PaymentViewSet, basename='payment') # Reverted prefix to 'payments'
+router.register(r'', views.PaymentViewSet, basename='payment') # Removed redundant prefix
 
 urlpatterns = [
     path('transfer-pending-to-available/', views.PaymentViewSet.as_view({'post': 'transfer_pending_to_available'}), name='transfer-pending-to-available'),

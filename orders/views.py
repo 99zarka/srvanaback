@@ -582,33 +582,60 @@ class OrderViewSet(viewsets.ModelViewSet):
             technician_user.refresh_from_db() # Lock technician user row
             order.refresh_from_db() # Lock order row
 
+            # Platform Commission Logic (5%)
+            gross_amount = order.final_price
+            commission_rate = Decimal('0.05')
+            platform_fee = gross_amount * commission_rate
+            technician_payout = gross_amount - platform_fee
+
             # Ensure funds are in escrow
-            if client_user.in_escrow_balance < amount_to_release:
+            if client_user.in_escrow_balance < gross_amount:
                 # This should ideally not happen if escrow deposit was successful
                 raise ValidationError({'detail': 'Error: Insufficient funds in escrow. Please contact support.'})
 
-            # Move funds from client's in_escrow_balance to technician's pending_balance
-            client_user.in_escrow_balance -= amount_to_release
+            # Move funds from client's in_escrow_balance
+            client_user.in_escrow_balance -= gross_amount
             client_user.save(update_fields=['in_escrow_balance'])
 
-            technician_user.pending_balance += amount_to_release
+            # Add NET amount to technician's pending_balance
+            technician_user.pending_balance += technician_payout
             technician_user.save(update_fields=['pending_balance'])
 
-            # Create an escrow release transaction
+            # Create Payout Transaction (To Technician)
             Transaction.objects.create(
                 source_user=client_user,
                 destination_user=technician_user,
                 order=order,
-                transaction_type='ESCROW_RELEASE',
-                amount=amount_to_release,
+                transaction_type='PAYOUT',
+                amount=technician_payout,
                 currency='EGP',
                 payment_method='Escrow'
             )
 
-            # Update the order status to completed and set job_completion_timestamp
+            # Create Platform Fee Transaction (To System)
+            Transaction.objects.create(
+                source_user=client_user,
+                destination_user=None, # System
+                order=order,
+                transaction_type='PLATFORM_FEE',
+                amount=platform_fee,
+                currency='EGP',
+                payment_method='Escrow'
+            )
+
+            # Update the order status and financial records
             order.order_status = 'COMPLETED'
             order.job_completion_timestamp = datetime.now()
-            order.save(update_fields=['order_status', 'job_completion_timestamp'])
+            order.commission_percentage = commission_rate * 100
+            order.platform_commission_amount = platform_fee
+            order.amount_to_technician = technician_payout
+            order.save(update_fields=[
+                'order_status', 
+                'job_completion_timestamp', 
+                'commission_percentage', 
+                'platform_commission_amount', 
+                'amount_to_technician'
+            ])
 
         # Notify technician of fund release
         create_notification(
