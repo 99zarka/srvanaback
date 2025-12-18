@@ -7,6 +7,7 @@ from payments.models import Payment
 from reviews.models import Review
 from users.models import User
 from issue_reports.models import IssueReport
+from transactions.models import Transaction
 from django.db.models import Sum, Count, Avg
 from django.utils import timezone
 from api.permissions import IsAdminUser
@@ -33,10 +34,10 @@ class ClientSummaryAPIView(APIView):
             order_status='COMPLETED'
         ).count()
 
-        # Total Spent
-        total_spent = Payment.objects.filter(
-            user=client_user,
-            status='COMPLETED'
+        # Total Spent (money that reached technicians via escrow release or dispute payout)
+        total_spent = Transaction.objects.filter(
+            source_user=client_user,
+            transaction_type__in=['ESCROW_RELEASE', 'DISPUTE_PAYOUT']
         ).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
 
         # Average Rating (from reviews given to technicians by this client)
