@@ -44,7 +44,7 @@ class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     Permissions: Authenticated User (owner) or Admin User.
     Usage: DELETE /api/transactions/{id}/
     """
-    queryset = Transaction.objects.all().order_by('id')
+    queryset = Transaction.objects.all().order_by('-timestamp')
     serializer_class = TransactionSerializer
     owner_field = 'source_user' # Updated to source_user
 
@@ -79,7 +79,7 @@ class TransactionViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         Returns the queryset for non-admin authenticated users,
         filtered by either source_user or destination_user using Q objects.
         """
-        return base_queryset.filter(Q(source_user=user) | Q(destination_user=user)).order_by('id')
+        return base_queryset.filter(Q(source_user=user) | Q(destination_user=user)).order_by('-timestamp')
 
     @action(detail=False, methods=['get'])
     def me(self, request):

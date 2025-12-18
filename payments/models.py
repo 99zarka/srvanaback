@@ -4,20 +4,22 @@ from orders.models import Order # Import Order model
 
 class PaymentMethod(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payment_methods')
-    card_type = models.CharField(max_length=50)  # e.g., Visa, MasterCard, American Express
-    last_four_digits = models.CharField(max_length=4)
-    expiration_date = models.CharField(max_length=7)  # MM/YYYY
-    card_holder_name = models.CharField(max_length=255)
+    paymob_token = models.CharField(max_length=255, unique=True, null=True, blank=True) # Secure token from Paymob
+    masked_pan = models.CharField(max_length=20, default='****') # Last 4 digits (or masked)
+    card_type = models.CharField(max_length=50, null=True, blank=True)  # e.g., Visa, MasterCard (card_subtype)
+    expiration_date = models.CharField(max_length=7, null=True, blank=True)  # MM/YYYY
+    card_holder_name = models.CharField(max_length=255, null=True, blank=True)
+    email = models.EmailField(null=True, blank=True) # Optional email associated with card
     is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         verbose_name_plural = "Payment Methods"
-        unique_together = ('user', 'card_type', 'last_four_digits')
+        unique_together = ('user', 'masked_pan', 'card_type') # Prevent duplicate cards per user
 
     def __str__(self):
-        return f"{self.card_type} ending in {self.last_four_digits}"
+        return f"{self.card_type} ending in {self.masked_pan}"
 
 class Payment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payments')
