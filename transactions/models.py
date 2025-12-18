@@ -13,6 +13,7 @@ class Transaction(models.Model):
         ('DISPUTE_PAYOUT', 'Dispute Payout'),
         ('DISPUTE_REFUND', 'Dispute Refund'),
         ('FEE', 'Fee'),
+        ('PENDING_TO_AVAILABLE_TRANSFER', 'Pending To Available Transfer'),
     ]
 
     source_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_transactions', null=True, blank=True)
