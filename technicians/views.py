@@ -438,8 +438,15 @@ class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelView
         return super().get_permissions()
 
     def get_queryset(self):
+        """
+        Override get_queryset to add prefetch_related for technician_user
+        to optimize database queries and avoid N+1 problems.
+        """
         user = self.request.user
         base_queryset = super(OwnerFilteredQuerysetMixin, self).get_queryset()
+
+        # Prefetch the technician_user data to avoid N+1 queries
+        base_queryset = base_queryset.prefetch_related('technician_user')
 
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             # For detail actions, always return the full queryset.
