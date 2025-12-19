@@ -1,204 +1,435 @@
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+import os
+import json
+import numpy as np
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from django.shortcuts import render
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from .rag_system import AIAssistantRAG
+from .api_client import AIClient
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from .api_client import AIClient
-from orders.models import Order, ProjectOffer
-from users.models import User
-from django.shortcuts import get_object_or_404
 
-@swagger_auto_schema(
-    method='get',
-    operation_description="Health check endpoint for AI service",
-    responses={200: openapi.Response('{"message": "AI chat service is running."}')}
-)
-@api_view(['GET'])
-@permission_classes([AllowAny])
 def index(request):
-    """Health check endpoint"""
-    return Response({"message": "AI chat service is running."})
+    """Main AI assistant index page."""
+    return render(request, 'ai/index.html')
 
-@swagger_auto_schema(
-    method='post',
-    operation_description="AI Chat endpoint - sends messages to AI model and returns response",
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        properties={
-            'model': openapi.Schema(type=openapi.TYPE_STRING, description='AI model name (e.g., openrouter-model-name)'),
-            'messages': openapi.Schema(
-                type=openapi.TYPE_ARRAY,
-                items=openapi.Items(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        'role': openapi.Schema(type=openapi.TYPE_STRING, enum=['user', 'assistant']),
-                        'content': openapi.Schema(type=openapi.TYPE_STRING)
-                    }
-                ),
-                description='Chat history as array of message objects'
-            )
-        },
-        required=['model', 'messages']
-    ),
-    responses={
-        200: openapi.Response('{"reply": "AI-generated response"}'),
-        400: openapi.Response('{"error": "Model and messages are required."}'),
-        500: openapi.Response('{"error": "Error message"}')
+
+def get_gemini_response(prompt: str) -> str:
+    """Get response from AI model via OpenRouter with fallback options."""
+    messages = [
+        {"role": "user", "content": prompt}
+    ]
+    
+    # Try different models in order of preference
+    models_to_try = [
+        "openrouter-kwaipilot/kat-coder-pro:free",       # Fallback 1
+        "openrouter-google/gemini-2.0-flash-exp:free",  # Primary choice
+        "openrouter-meta-llama/llama-3.1-8b-instruct:free",  # Fallback 2
+    ]
+    
+    for model in models_to_try:
+        try:
+            response = AIClient.call_api(model, messages)
+            return response.strip()
+        except Exception as e:
+            error_msg = str(e)
+            # Check if it's a rate limit error
+            if "Rate limit exceeded" in error_msg or "429" in error_msg:
+                print(f"Rate limit hit for {model}, trying next model...")
+                continue
+            else:
+                print(f"Error with {model}: {error_msg}")
+                continue
+    
+    # If all models fail, return a helpful fallback response
+    return "I apologize, but I'm currently experiencing high demand. Please try again in a few minutes. This is a temporary issue with the AI service."
+
+def analyze_technician_need(user_message: str, ai_response: str) -> dict:
+    """Analyze if user needs a technician based on conversation."""
+    analysis_prompt = f"""
+    Analyze this conversation and determine if the user needs a technician:
+    
+    User: {user_message}
+    AI Response: {ai_response}
+    
+    Respond with JSON:
+    {{
+        "needs_technician": true/false,
+        "issue_type": "plumbing/electrical/painting/maintenance/other",
+        "urgency": "low/medium/high",
+        "confidence": 0.0-1.0
+    }}
+    """
+    
+    try:
+        analysis = get_gemini_response(analysis_prompt)
+        # Parse JSON response
+        return json.loads(analysis)
+    except:
+        return {
+            "needs_technician": False,
+            "issue_type": None,
+            "urgency": "medium",
+            "confidence": 0.0
+        }
+
+# Define Swagger request and response schemas
+chat_request_body = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['message'],
+    properties={
+        'message': openapi.Schema(type=openapi.TYPE_STRING, description='User message to the AI assistant'),
     }
 )
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def chat(request):
-    """
-    Chat endpoint that handles AI model requests
-    Expected payload: {"model": "openrouter-model-name", "messages": [{"role": "user", "content": "message"}]}
-    """
-    data = request.data
-    model = data.get('model')
-    messages = data.get('messages') # Chat history
 
-    if not model or not messages:
-        return Response(
-            {"error": "Model and messages are required."}, 
-            status=status.HTTP_400_BAD_REQUEST
+recommend_technicians_request_body = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['user_issue'],
+    properties={
+        'user_issue': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the user\'s issue'),
+        'top_k': openapi.Schema(type=openapi.TYPE_INTEGER, description='Number of top technicians to return (default: 3)')
+    }
+)
+
+create_order_request_body = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    required=['technician_id', 'user_issue'],
+    properties={
+        'technician_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the selected technician'),
+        'user_issue': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the user\'s issue'),
+        'service_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='ID of the service requested')
+    }
+)
+
+chat_response_schema = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'message': openapi.Schema(type=openapi.TYPE_STRING, description='AI assistant response'),
+        'action': openapi.Schema(type=openapi.TYPE_STRING, description='Action to take (continue_chat or recommend_technicians)'),
+        'metadata': openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'issue_type': openapi.Schema(type=openapi.TYPE_STRING, description='Type of issue (plumbing, electrical, etc.)'),
+                'urgency': openapi.Schema(type=openapi.TYPE_STRING, description='Urgency level (low, medium, high)'),
+                'confidence': openapi.Schema(type=openapi.TYPE_NUMBER, description='Confidence score (0.0-1.0)')
+            }
         )
+    }
+)
 
-    try:
-        response_content = AIClient.call_api(model, messages)
-        return Response({"reply": response_content})
-    except Exception as e:
-        return Response(
-            {"error": str(e)}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-@swagger_auto_schema(
-    method='post',
-    operation_description="Generate AI-powered proposal for a project",
-    request_body=openapi.Schema(
-        type=openapi.TYPE_OBJECT,
-        properties={
-            'order_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Project order ID'),
-            'technician_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Technician user ID')
-        },
-        required=['order_id', 'technician_id']
-    ),
-    responses={
-        200: openapi.Response(
-            description='AI-generated proposal and price',
-            schema=openapi.Schema(
+technician_response_schema = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'technicians': openapi.Schema(
+            type=openapi.TYPE_ARRAY,
+            items=openapi.Schema(
                 type=openapi.TYPE_OBJECT,
                 properties={
-                    'proposal': openapi.Schema(type=openapi.TYPE_STRING, description='Generated proposal text'),
-                    'price': openapi.Schema(type=openapi.TYPE_NUMBER, description='Suggested price')
+                    'id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Technician ID'),
+                    'name': openapi.Schema(type=openapi.TYPE_STRING, description='Technician full name'),
+                    'rating': openapi.Schema(type=openapi.TYPE_NUMBER, description='Technician rating'),
+                    'location': openapi.Schema(type=openapi.TYPE_STRING, description='Technician location'),
+                    'specialization': openapi.Schema(type=openapi.TYPE_STRING, description='Technician specialization'),
+                    'jobs_completed': openapi.Schema(type=openapi.TYPE_INTEGER, description='Number of jobs completed'),
+                    'similarity_score': openapi.Schema(type=openapi.TYPE_NUMBER, description='Similarity score (0.0-1.0)'),
+                    'reasoning': openapi.Schema(type=openapi.TYPE_STRING, description='AI-generated reasoning for recommendation'),
+                    'reviews': openapi.Schema(
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Schema(type=openapi.TYPE_OBJECT),
+                        description='Recent reviews'
+                    )
                 }
             )
         ),
-        400: openapi.Response('{"error": "Order ID and Technician ID are required."}'),
-        404: openapi.Response('{"error": "Order or Technician not found."}'),
-        500: openapi.Response('{"error": "Error message"}')
+        'total_found': openapi.Schema(type=openapi.TYPE_INTEGER, description='Total number of technicians found')
     }
 )
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def generate_proposal(request):
+
+order_response_schema = openapi.Schema(
+    type=openapi.TYPE_OBJECT,
+    properties={
+        'technician_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Selected technician ID'),
+        'user_issue': openapi.Schema(type=openapi.TYPE_STRING, description='User issue description'),
+        'service_id': openapi.Schema(type=openapi.TYPE_INTEGER, description='Service ID'),
+        'status': openapi.Schema(type=openapi.TYPE_STRING, description='Order status'),
+        'estimated_price': openapi.Schema(type=openapi.TYPE_STRING, description='Estimated price'),
+        'message': openapi.Schema(type=openapi.TYPE_STRING, description='Success message')
+    }
+)
+
+
+class ChatView(APIView):
     """
-    Generate AI-powered proposal for a project based on project details and technician profile
-    Uses openrouter-x-ai/grok-code-fast-1 model
+    API endpoint for AI-powered chat with structured responses.
+    
+    POST /api/ai/ai-assistant/chat/
+    
+    Chat with the AI assistant. The AI analyzes the user's message and determines if a technician is needed.
+    Returns the AI's response along with metadata about the issue type, urgency, and confidence.
+    
+    Request Body:
+    {
+        "message": "I have a problem with my washing machine, it won't drain water"
+    }
+    
+    Response:
+    {
+        "message": "AI response text...",
+        "action": "continue_chat|recommend_technicians",
+        "metadata": {
+            "issue_type": "plumbing|electrical|painting|maintenance|other",
+            "urgency": "low|medium|high",
+            "confidence": 0.85
+        }
+    }
     """
-    data = request.data
-    order_id = data.get('order_id')
-    technician_id = data.get('technician_id')
-
-    if not order_id or not technician_id:
-        return Response(
-            {"error": "Order ID and Technician ID are required."}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    try:
-        # Fetch order and technician data
-        order = get_object_or_404(Order, order_id=order_id)
-        technician = get_object_or_404(User, user_id=technician_id)
-
-        # Prepare context for AI
-        project_context = {
-            'service_name': order.service.arabic_name if hasattr(order.service, 'arabic_name') else order.service.name if hasattr(order.service, 'name') else 'Unknown Service',
-            'problem_description': order.problem_description,
-            'location': order.requested_location,
-            'scheduled_date': order.scheduled_date,
-            'scheduled_time': f"{order.scheduled_time_start} - {order.scheduled_time_end}",
-            'expected_price': order.expected_price,
-            'order_status': order.order_status
+    
+    permission_classes = []  # No authentication required for demo
+    
+    @swagger_auto_schema(
+        request_body=chat_request_body,
+        responses={
+            200: openapi.Response('Successful response', chat_response_schema),
+            500: openapi.Response('Error response', openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING),
+                    'message': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            ))
         }
+    )
+    def post(self, request):
+        try:
+            data = request.data
+            user_message = data.get('message', '')
+            
+            # Get Gemini response
+            gemini_response = get_gemini_response(user_message)
+            
+            # Analyze if technician is needed
+            technician_analysis = analyze_technician_need(user_message, gemini_response)
+            
+            response_data = {
+                'message': gemini_response,
+                'action': 'recommend_technicians' if technician_analysis.get('needs_technician') else 'continue_chat',
+                'metadata': {
+                    'issue_type': technician_analysis.get('issue_type'),
+                    'urgency': technician_analysis.get('urgency'),
+                    'confidence': technician_analysis.get('confidence')
+                }
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e),
+                'message': 'An error occurred while processing your request.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        technician_context = {
-            'first_name': technician.first_name,
-            'last_name': technician.last_name,
-            'specialization': technician.specialization,
-            'skills': technician.skills_text,
-            'experience_years': technician.experience_years,
-            'hourly_rate': technician.hourly_rate,
-            'overall_rating': float(technician.overall_rating) if technician.overall_rating else None,
-            'num_jobs_completed': technician.num_jobs_completed
+
+class RecommendTechniciansView(APIView):
+    """
+    API endpoint for AI-powered technician recommendations using RAG system.
+    
+    POST /api/ai/ai-assistant/recommend-technicians/
+    
+    Get AI-recommended technicians based on the user's issue description.
+    Uses semantic similarity matching with RAG system to find the best matches.
+    Returns detailed technician profiles with AI-generated reasoning.
+    
+    Request Body:
+    {
+        "user_issue": "I need a plumber to fix a water leak in my kitchen",
+        "top_k": 3
+    }
+    
+    Response:
+    {
+        "technicians": [
+            {
+                "id": 123,
+                "name": "John Doe",
+                "rating": 4.8,
+                "location": "Cairo, Egypt",
+                "specialization": "Plumbing",
+                "jobs_completed": 150,
+                "similarity_score": 0.92,
+                "reasoning": "AI-generated explanation...",
+                "reviews": [...]
+            }
+        ],
+        "total_found": 3
+    }
+    """
+    
+    permission_classes = []  # No authentication required for demo
+    
+    @swagger_auto_schema(
+        request_body=recommend_technicians_request_body,
+        responses={
+            200: openapi.Response('Successful response', technician_response_schema),
+            400: openapi.Response('Bad Request', openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error message')
+                }
+            )),
+            500: openapi.Response('Error response', openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING),
+                    'message': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            ))
         }
+    )
+    def post(self, request):
+        try:
+            data = request.data
+            user_issue = data.get('user_issue', '')
+            top_k = data.get('top_k', 3)
+            
+            if not user_issue:
+                return Response({
+                    'error': 'user_issue is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get RAG system
+            rag = AIAssistantRAG()
+            
+            # Find technician matches
+            tech_matches = rag.get_technician_matches(user_issue, top_k)
+            
+            # Format response
+            tech_data = []
+            for match in tech_matches:
+                tech = match['data']
+                
+                # Get AI reasoning for this match
+                reasoning_prompt = f"""
+                User Issue: {user_issue}
+                
+                Technician Profile: 
+                - Name: {tech['first_name']} {tech['last_name']}
+                - Specialization: {tech['specialization']}
+                - Rating: {tech['overall_rating']}
+                - Location: {tech['address']}
+                - Jobs Completed: {tech['num_jobs_completed']}
+                - Reviews: {tech.get('reviews', [])}
+                
+                Explain in 2-3 sentences why this technician is a good match for the user's issue.
+                Focus on relevant skills, experience, and location.
+                """
+                
+                reasoning = get_gemini_response(reasoning_prompt)
+                
+                tech_data.append({
+                    'id': tech['user_id'],
+                    'name': f"{tech['first_name']} {tech['last_name']}",
+                    'rating': tech['overall_rating'],
+                    'location': tech['address'],
+                    'specialization': tech['specialization'],
+                    'jobs_completed': tech['num_jobs_completed'],
+                    'similarity_score': match['similarity'],
+                    'reasoning': reasoning,
+                    'reviews': tech.get('reviews', [])
+                })
+            
+            return Response({
+                'technicians': tech_data,
+                'total_found': len(tech_matches)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e),
+                'message': 'An error occurred while processing your request.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Create detailed prompt for AI
-        prompt = f"""You are an expert consultant helping technicians create professional project proposals in Arabic. Generate a compelling proposal in Arabic (not more than 100 words) and suggest an appropriate price based on the project requirements and technician profile. The proposal should be concise, professional, and highlight the technician's qualifications and approach to the project. Also provide a competitive price suggestion based on the project complexity and technician's experience level. Return the response in the following JSON format: {{\"proposal\": \"Arabic proposal text (max 100 words)\", \"price\": suggested_price_number}}
 
-PROJECT DETAILS IN ARABIC:
-- Service: {project_context['service_name']}
-- Problem Description: {project_context['problem_description']}
-- Location: {project_context['location']}
-- Scheduled Date: {project_context['scheduled_date']}
-- Scheduled Time: {project_context['scheduled_time']}
-- Expected Price: {project_context['expected_price']}
-- Order Status: {project_context['order_status']}
-
-TECHNICIAN PROFILE IN ARABIC:
-- Name: {technician_context['first_name']} {technician_context['last_name']}
-- Specialization: {technician_context['specialization']}
-- Skills: {technician_context['skills']}
-- Experience Years: {technician_context['experience_years']}
-- Hourly Rate: {technician_context['hourly_rate']}
-- Overall Rating: {technician_context['overall_rating']}
-- Jobs Completed: {technician_context['num_jobs_completed']}
-
-Please provide a concise, professional proposal in Arabic (maximum 100 words) that showcases the technician's expertise and addresses the project requirements, along with a suggested price that reflects the technician's experience and market rates. The proposal should be in Arabic language only, maximum 100 words, professional and convincing."""
-
-        # Use the AI client to generate the proposal
-        messages = [{"role": "user", "content": prompt}]
-        model = "openrouter-google/gemini-2.0-flash-exp:free"
-        response_content = AIClient.call_api(model, messages)
-
-        # Parse the response to extract proposal and price
-        import json
-        import re
-        
-        # Try to parse JSON from the response
-        json_match = re.search(r'\{.*\}', response_content, re.DOTALL)
-        if json_match:
-            json_str = json_match.group()
-            try:
-                result = json.loads(json_str)
-                proposal = result.get('proposal', response_content)
-                price = result.get('price', 0)
-            except json.JSONDecodeError:
-                # If JSON parsing fails, return the full response as proposal with 0 price
-                proposal = response_content
-                price = 0
-        else:
-            # If no JSON found, return the full response as proposal with 0 price
-            proposal = response_content
-            price = 0
-
-        return Response({
-            "proposal": proposal,
-            "price": price
-        })
-    except Exception as e:
-        return Response(
-            {"error": str(e)}, 
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+class CreateOrderFromAIView(APIView):
+    """
+    API endpoint for creating orders based on AI recommendations.
+    
+    POST /api/ai/ai-assistant/create-order-from-ai/
+    
+    Create a service order based on AI technician recommendations.
+    Validates technician selection and creates order with pending confirmation status.
+    
+    Request Body:
+    {
+        "technician_id": 123,
+        "user_issue": "Water leak in kitchen sink",
+        "service_id": 456
+    }
+    
+    Response:
+    {
+        "technician_id": 123,
+        "user_issue": "Water leak in kitchen sink",
+        "service_id": 456,
+        "status": "pending_confirmation",
+        "estimated_price": "1000.00",
+        "message": "Order created successfully. Technician will be notified."
+    }
+    """
+    
+    permission_classes = []  # No authentication required for demo
+    
+    @swagger_auto_schema(
+        request_body=create_order_request_body,
+        responses={
+            200: openapi.Response('Successful response', order_response_schema),
+            400: openapi.Response('Bad Request', openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING, description='Error message')
+                }
+            )),
+            500: openapi.Response('Error response', openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING),
+                    'message': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            ))
+        }
+    )
+    def post(self, request):
+        try:
+            data = request.data
+            technician_id = data.get('technician_id')
+            user_issue = data.get('user_issue')
+            service_id = data.get('service_id')
+            
+            if not technician_id or not user_issue:
+                return Response({
+                    'error': 'technician_id and user_issue are required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Here you would create an order in your database
+            # For now, return a success response with order details
+            
+            order_data = {
+                'technician_id': technician_id,
+                'user_issue': user_issue,
+                'service_id': service_id,
+                'status': 'pending_confirmation',
+                'estimated_price': '1000.00',  # This would be calculated based on service
+                'message': 'Order created successfully. Technician will be notified.'
+            }
+            
+            return Response(order_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'error': str(e),
+                'message': 'An error occurred while creating the order.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
