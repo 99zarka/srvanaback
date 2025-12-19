@@ -14,7 +14,7 @@ if exist venv\Scripts\activate (
     pip install -r requirements.txt
     echo Virtual environment setup complete.
     echo Starting Django development server...
-    python manage.py runserver
+    python manage.py runserver 0.0.0.0:8000
 ) else (
     echo Error: Virtual environment activation script not found.
     echo Please check if Python is installed correctly and accessible in your PATH.

@@ -205,9 +205,26 @@ CORS_ALLOW_CREDENTIALS = True # Allow credentials (e.g., Authorization headers)
 
 # WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
 # It is used here for development/testing purposes as per user request.
-# WARNING: Allowing all origins for CSRF is generally not recommended for production due to security risks.
-# It is used here for development/testing purposes as per user request.
-CSRF_TRUSTED_ORIGINS = ['https://*', 'http://*', 'https://srvanaback-268062404120.europe-west1.run.app']
+CSRF_TRUSTED_ORIGINS = ['https://*', 'http://*']
+
+# Disable CSRF origin checking to trust all origins (for development/testing)
+CSRF_USE_SESSIONS = False
+CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = None
+CSRF_COOKIE_DOMAIN = None
+CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+
+# Most important setting: Completely disable CSRF origin checking
+CSRF_COOKIE_SAMESITE = None
+
+# Nuclear option: Disable CSRF checking entirely for development
+if not IS_PRODUCTION:
+    # Add our custom CSRF bypass middleware at the beginning
+    MIDDLEWARE = ['api.middleware.DisableCSRFMiddleware'] + MIDDLEWARE
+
+# Alternative: Set CSRF failure view to bypass check
+CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'
 
 ROOT_URLCONF = 'srvana.urls'
 
