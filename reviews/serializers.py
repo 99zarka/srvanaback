@@ -22,3 +22,19 @@ class ReviewSerializer(serializers.ModelSerializer):
             data = data.copy()
             data['reviewer'] = str(request.user.user_id)
         return super().to_internal_value(data)
+
+
+class PublicReviewSerializer(serializers.ModelSerializer):
+    """
+    A simplified serializer for reviews intended for public consumption.
+    Excludes sensitive information like reviewer details.
+    """
+    class Meta:
+        model = Review
+        fields = [
+            'rating',
+            'comment', 
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = fields

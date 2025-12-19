@@ -66,4 +66,9 @@ class PublicUserViewSet(viewsets.ReadOnlyModelViewSet):
                     effective_rating=Coalesce('overall_rating', Value(0.0), output_field=DecimalField())
                 ).order_by('-effective_rating', '-num_jobs_completed')
         
+        # Prefetch reviews for technicians to avoid N+1 query problem
+        # Only prefetch if user_type is technician to optimize performance
+        if user_type_param and user_type_param.lower() == 'technician':
+            queryset = queryset.prefetch_related('received_reviews')
+        
         return queryset

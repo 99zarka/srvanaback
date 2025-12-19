@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from users.models import User, UserType
 from filesupload.serializers.fields import CloudinaryImageField
+from reviews.serializers import PublicReviewSerializer
 
 class UserTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -31,15 +32,21 @@ class PublicUserSerializer(serializers.ModelSerializer):
     profile_photo = CloudinaryImageField(required=False, allow_null=True)
     user_type = serializers.StringRelatedField(source='user_type.user_type_name') # Display user type name
     overall_rating = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = (
             'user_id', 'first_name', 'last_name', 'username', 'bio', 'profile_photo', 'specialization',
             'user_type', 'overall_rating', 'num_jobs_completed', 'average_response_time', 'address',
-            'registration_date', 'account_status', 'verification_status', 'access_level'
+            'registration_date', 'account_status', 'verification_status', 'access_level', 'reviews'
         )
         read_only_fields = fields # All fields are read-only for public view
+
+    def get_reviews(self, obj):
+        """Return reviews using PublicReviewSerializer"""
+        reviews = obj.received_reviews.all()
+        return PublicReviewSerializer(reviews, many=True, context=self.context).data
 
     def get_overall_rating(self, obj):
         # Ensure rating is returned as float, not string
