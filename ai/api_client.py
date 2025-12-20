@@ -448,10 +448,6 @@ class AIClient:
         for msg in messages:
             new_msg = msg.copy()
             
-            # Simplify content if it's a list of text parts
-            if isinstance(new_msg['content'], list) and all(item.get('type') == 'text' for item in new_msg['content']):
-                new_msg['content'] = "\n".join(item['text'] for item in new_msg['content'])
-
             # Standardize role to 'assistant'
             if new_msg['role'] == 'model':
                 new_msg['role'] = 'assistant'
@@ -485,10 +481,6 @@ class AIClient:
         for msg in messages:
             new_msg = msg.copy()
             
-            # Simplify content if it's a list of text parts
-            if isinstance(new_msg['content'], list) and all(item.get('type') == 'text' for item in new_msg['content']):
-                new_msg['content'] = "\n".join(item['text'] for item in new_msg['content'])
-
             # Standardize role to 'assistant'
             if new_msg['role'] == 'model':
                 new_msg['role'] = 'assistant'
@@ -550,9 +542,9 @@ if __name__ == "__main__":
     print("\n--- Test 3: Prompt with an image URL (OpenAI) ---")
     try:
         # A publicly accessible image URL
-        image_url = "https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png"
+        image_url = "https://res.cloudinary.com/dpcqmcm0x/image/upload/v1764208756/zvwqngy66iygfit6y4ot"
         response = AIClient.call_llm(
-            "openai-gpt-4o-mini", 
+            "gemini-2.5-flash", 
             "What is in this image?", 
             image_urls=[image_url]
         )

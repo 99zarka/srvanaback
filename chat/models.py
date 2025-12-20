@@ -36,7 +36,7 @@ class Message(models.Model):
 
 class AIConversation(models.Model):
     """Represents a conversation thread with the AI assistant."""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_conversations')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='ai_conversations')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=True)
@@ -48,7 +48,9 @@ class AIConversation(models.Model):
         ]
 
     def __str__(self):
-        return f"AI Conversation {self.id} for {self.user.username}"
+        if self.user:
+            return f"AI Conversation {self.id} for {self.user.username}"
+        return f"AI Conversation {self.id} for Anonymous User"
 
     def discard(self):
         """Marks the conversation as inactive."""
@@ -69,6 +71,8 @@ class AIConversationMessage(models.Model):
     conversation = models.ForeignKey(AIConversation, on_delete=models.CASCADE, related_name='messages')
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
+    image_url = CloudinaryField('chat_images', null=True, blank=True)
+    file_url = CloudinaryField('chat_files', null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:

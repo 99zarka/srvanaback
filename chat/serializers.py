@@ -1,7 +1,12 @@
 from rest_framework import serializers
-from .models import Conversation, Message
+from .models import Conversation, Message, AIConversationMessage
 from users.serializers.user_serializers import PublicUserSerializer
 from filesupload.serializers.fields import CloudinaryFileField
+
+class AIConversationMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIConversationMessage
+        fields = ['id', 'conversation', 'role', 'content', 'image_url', 'file_url', 'timestamp']
 
 class ConversationSerializer(serializers.ModelSerializer):
     participants_info = serializers.SerializerMethodField()
