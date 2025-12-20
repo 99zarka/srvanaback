@@ -12,6 +12,7 @@ from users.models import User
 from chat.models import AIConversation, AIConversationMessage
 from django.shortcuts import get_object_or_404
 from chat.serializers import AIConversationMessageSerializer
+from ai.rag_system import AIAssistantRAG # Import AIAssistantRAG
 
 # This can be moved to a settings file
 AI_CHAT_MODEL = "openrouter-kwaipilot/kat-coder-pro:free"
@@ -123,6 +124,10 @@ def chat(request):
     image_urls_list = [image_url] if image_url else None
     file_urls_list = [file_url] if file_url else None
 
+    # --- RAG Integration ---
+    rag_system = AIAssistantRAG()
+    relevant_context = rag_system.find_matches(prompt, 50) + rag_system.get_technician_matches(prompt,5)
+    
     # --- AI Client Call ---
     model_to_use = AI_CHAT_MODEL
     if image_url or file_url:
@@ -133,6 +138,7 @@ def chat(request):
             model=model_to_use,
             prompt=prompt,
             history=history,
+            context=relevant_context, # Pass the retrieved context
             image_urls=image_urls_list,
             file_urls=file_urls_list,
             system_message="You are Srvana Assistant, an expert in a services marketplace. Provide concise, helpful, and friendly responses."

@@ -3,9 +3,11 @@ import json
 import numpy as np
 from google import genai
 from google.genai import types
+from dotenv import load_dotenv
 
-# Configure Google API
-client = genai.Client(api_key="AIzaSyBgASSuOhcvRn-CurpsUMpKy9ZezOlUTVQ")
+load_dotenv()
+
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def get_embedding(text: str) -> list[float]:
     """Get embedding for text using Google's text-embedding-004 model."""
