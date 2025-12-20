@@ -7,6 +7,35 @@ class AIConversationMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = AIConversationMessage
         fields = ['id', 'conversation', 'role', 'content', 'image_url', 'file_url', 'timestamp']
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Handle CloudinaryResource objects by converting to URL and fixing malformed URLs
+        if instance.image_url:
+            if hasattr(instance.image_url, 'url'):
+                image_url = instance.image_url.url
+            elif str(instance.image_url).startswith('http'):
+                image_url = str(instance.image_url)
+            else:
+                image_url = str(instance.image_url)
+            
+            # Fix malformed URLs that have "image/upload/" prefix
+            if image_url.startswith('image/upload/https://'):
+                image_url = image_url.replace('image/upload/https://', 'https://')
+            
+            data['image_url'] = image_url
+        
+        if instance.file_url:
+            if hasattr(instance.file_url, 'url'):
+                file_url = instance.file_url.url
+            elif str(instance.file_url).startswith('http'):
+                file_url = str(instance.file_url)
+            else:
+                file_url = str(instance.file_url)
+            
+            data['file_url'] = file_url
+        
+        return data
 
 class ConversationSerializer(serializers.ModelSerializer):
     participants_info = serializers.SerializerMethodField()

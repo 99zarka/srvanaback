@@ -76,7 +76,9 @@ def chat(request):
     Handles chat interactions with the AI assistant for both authenticated and anonymous users.
     """
     prompt = request.data.get('prompt')
-    if not prompt:
+    start_new = request.data.get('start_new', False) # Moved up for conditional check
+
+    if not prompt and not start_new: # Only require prompt if not starting a new conversation
         return Response({"error": "Prompt is required."}, status=status.HTTP_400_BAD_REQUEST)
 
     image_url = request.data.get('image_url')
@@ -112,13 +114,16 @@ def chat(request):
             request.session['ai_conversation_id'] = conversation.id
 
     # --- Message Handling ---
-    user_message = AIConversationMessage.objects.create(
-        conversation=conversation,
-        role='user',
-        content=prompt,
-        image_url=image_url,
-        file_url=file_url
-    )
+    # Only create user message if there's actual content to send
+    user_message = None
+    if prompt or image_url or file_url:
+        user_message = AIConversationMessage.objects.create(
+            conversation=conversation,
+            role='user',
+            content=prompt,
+            image_url=image_url,
+            file_url=file_url
+        )
 
     history = conversation.get_history()
     image_urls_list = [image_url] if image_url else None
@@ -129,35 +134,39 @@ def chat(request):
     relevant_context = rag_system.find_matches(prompt, 50) + rag_system.get_technician_matches(prompt,100)
     
     # --- AI Client Call ---
-    model_to_use = AI_CHAT_MODEL
-    if image_url or file_url:
-        model_to_use = "gemini-2.5-flash"
+    # Only call AI if there's actual content to process
+    if prompt or image_url or file_url:
+        model_to_use = AI_CHAT_MODEL
+        if image_url or file_url:
+            model_to_use = "gemini-2.5-flash"
 
-    try:
-        ai_response = AIClient.call_llm(
-            model=model_to_use,
-            prompt=prompt,
-            history=history,
-            context=relevant_context, # Pass the retrieved context
-            image_urls=image_urls_list,
-            file_urls=file_urls_list,
-            system_message="You are Srvana Assistant, an expert in a services marketplace exclusively for Egypt. Provide concise, helpful, and friendly responses in Arabic. All currency references must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only."
-        )
+        try:
+            ai_response = AIClient.call_llm(
+                model=model_to_use,
+                prompt=prompt,
+                history=history,
+                context=relevant_context, # Pass the retrieved context
+                image_urls=image_urls_list,
+                file_urls=file_urls_list,
+                system_message="You are Srvana Assistant, an expert in a services marketplace exclusively for Egypt. Provide concise, helpful, and friendly responses in Arabic. All currency references must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only."
+            )
 
-        # --- Save AI Response ---
-        AIConversationMessage.objects.create(
-            conversation=conversation,
-            role='assistant',
-            content=ai_response
-        )
+            # --- Save AI Response ---
+            AIConversationMessage.objects.create(
+                conversation=conversation,
+                role='assistant',
+                content=ai_response
+            )
 
-        return Response({"reply": ai_response}, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        error_message = f"An error occurred while communicating with the AI: {str(e)}"
-        # Log the error for debugging
-        print(f"Error during AI chat (Conv ID: {conversation.id}): {error_message}")
-        return Response({"error": error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"reply": ai_response}, status=status.HTTP_200_OK)
+        except Exception as e:
+            error_message = f"An error occurred while communicating with the AI: {str(e)}"
+            # Log the error for debugging
+            print(f"Error during AI chat (Conv ID: {conversation.id}): {error_message}")
+            return Response({"error": error_message}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    else:
+        # No content to process, just return success without AI response
+        return Response({"reply": ""}, status=status.HTTP_200_OK)
 
 
 @swagger_auto_schema(
