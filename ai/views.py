@@ -47,11 +47,13 @@ def get_gemini_response(prompt: str) -> str:
                 continue
     
     # If all models fail, return a helpful fallback response
-    return "I apologize, but I'm currently experiencing high demand. Please try again in a few minutes. This is a temporary issue with the AI service."
+    return "عذرًا، أواجه طلبًا مرتفعًا حاليًا. يرجى المحاولة مرة أخرى بعد بضع دقائق. هذه مشكلة مؤقتة مع خدمة الذكاء الاصطناعي."
 
 def analyze_technician_need(user_message: str, ai_response: str) -> dict:
     """Analyze if user needs a technician based on conversation."""
     analysis_prompt = f"""
+    IMPORTANT: This platform is exclusively for Egypt and serves Egyptian users only. All currency values must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only.
+    
     Analyze this conversation and determine if the user needs a technician:
     
     User: {user_message}
@@ -314,6 +316,8 @@ class RecommendTechniciansView(APIView):
                 
                 # Get AI reasoning for this match
                 reasoning_prompt = f"""
+                IMPORTANT: This platform is exclusively for Egypt and serves Egyptian users only. All currency values must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only.
+                
                 User Issue: {user_issue}
                 
                 Technician Profile: 

@@ -119,6 +119,8 @@ This script provides a unified and enhanced AI client (`AIClient`) for interacti
 various Large Language Model (LLM) providers, including Google Gemini, OpenAI, and any
 provider compatible with the OpenRouter API.
 
+IMPORTANT: This platform is exclusively for Egypt and serves Egyptian users only. All currency values must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only.
+
 Features:
 - Unified Interface: A single `call_llm` method to access different models.
 - Multi-Provider Support: Routes requests to Gemini, OpenAI, or OpenRouter based on the model name prefix.
@@ -191,6 +193,8 @@ print(response)
 - `image_urls` (list[str], optional): A list of URLs pointing to images.
 - `file_urls` (list[str], optional): A list of URLs pointing to text-based files to be included as context.
 - `system_message` (str, optional): A top-level instruction for the model to follow for the entire conversation.
+
+IMPORTANT: All responses must be in Arabic and all currency references must be in Egyptian Pounds (EGP). All locations must be within Egyptian governorates only.
 
 -------------------------------------------------------------------------------
 USAGE AS A STANDALONE SCRIPT (FOR TESTING)

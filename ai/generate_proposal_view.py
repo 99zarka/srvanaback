@@ -141,7 +141,7 @@ def chat(request):
             context=relevant_context, # Pass the retrieved context
             image_urls=image_urls_list,
             file_urls=file_urls_list,
-            system_message="You are Srvana Assistant, an expert in a services marketplace. Provide concise, helpful, and friendly responses."
+            system_message="You are Srvana Assistant, an expert in a services marketplace exclusively for Egypt. Provide concise, helpful, and friendly responses in Arabic. All currency references must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only."
         )
 
         # --- Save AI Response ---
@@ -246,13 +246,15 @@ def generate_proposal(request):
         # Create detailed prompt for AI
         prompt = f"""You are an expert consultant helping technicians create professional project proposals in Arabic. Generate a compelling proposal in Arabic (not more than 100 words) and suggest an appropriate price based on the project requirements and technician profile. The proposal should be concise, professional, and highlight the technician's qualifications and approach to the project. Also provide a competitive price suggestion based on the project complexity and technician's experience level. Return the response in the following JSON format: {{"proposal": "Arabic proposal text (max 100 words)", "price": suggested_price_number}}
 
+IMPORTANT: This platform is exclusively for Egypt and serves Egyptian users only. All currency values must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only.
+
 PROJECT DETAILS IN ARABIC:
 - Service: {project_context['service_name']}
 - Problem Description: {project_context['problem_description']}
-- Location: {project_context['location']}
+- Location: {project_context['location']} (Must be within Egypt)
 - Scheduled Date: {project_context['scheduled_date']}
 - Scheduled Time: {project_context['scheduled_time']}
-- Expected Price: {project_context['expected_price']}
+- Expected Price: {project_context['expected_price']} EGP
 - Order Status: {project_context['order_status']}
 
 TECHNICIAN PROFILE IN ARABIC:
@@ -260,11 +262,11 @@ TECHNICIAN PROFILE IN ARABIC:
 - Specialization: {technician_context['specialization']}
 - Skills: {technician_context['skills']}
 - Experience Years: {technician_context['experience_years']}
-- Hourly Rate: {technician_context['hourly_rate']}
+- Hourly Rate: {technician_context['hourly_rate']} EGP
 - Overall Rating: {technician_context['overall_rating']}
 - Jobs Completed: {technician_context['num_jobs_completed']}
 
-Please provide a concise, professional proposal in Arabic (maximum 100 words) that showcases the technician's expertise and addresses the project requirements, along with a suggested price that reflects the technician's experience and market rates. The proposal should be in Arabic language only, maximum 100 words, professional and convincing."""
+Please provide a concise, professional proposal in Arabic (maximum 100 words) that showcases the technician's expertise and addresses the project requirements, along with a suggested price that reflects the technician's experience and market rates. The proposal should be in Arabic language only, maximum 100 words, professional and convincing. All prices must be in Egyptian Pounds (EGP) and all references must be to Egyptian locations only."""
 
         # Use the AI client to generate the proposal
         model = "openrouter-kwaipilot/kat-coder-pro:free"

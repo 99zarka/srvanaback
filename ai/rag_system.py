@@ -31,7 +31,7 @@ class AIAssistantRAG:
     
     def build_index(self):
         """Build embeddings index from database using serializers."""
-        print("Building AI Assistant Index...")
+        print("Building AI Assistant Index for Egypt-based services platform...")
         
         # Clear existing data
         self.embeddings.clear()
@@ -48,7 +48,7 @@ class AIAssistantRAG:
         
         # 4. Save index
         self.save_index()
-        print(f"Index built with {len(self.embeddings)} embeddings")
+        print(f"Index built with {len(self.embeddings)} embeddings for Egyptian marketplace")
     
     def _build_technician_embeddings(self):
         """Build embeddings for all technicians."""
