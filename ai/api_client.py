@@ -315,6 +315,19 @@ class AIClient:
         final_system_message = DOCSTRING_SYSTEM_MESSAGE
         if system_message:
             final_system_message += "\n\nAdditionally, follow this instruction:\n" + system_message
+        
+        # Add strict instruction about using only provided context
+        final_system_message += """
+        
+        IMPORTANT INSTRUCTIONS:
+        1. You MUST ONLY use information provided in the context, history, or user prompt.
+        2. DO NOT make up or hallucinate information not present in the provided data.
+        3. If you don't have enough information to answer, respond with: "I don't have enough information to answer this question."
+        4. When asked about services, technicians, or specific data, ONLY use the information provided in the context.
+        5. DO NOT invent prices, availability, or details not explicitly provided.
+        6. Always cite the source of information when possible (e.g., "Based on the context provided...").
+        """
+        
         messages.append({"role": "system", "content": final_system_message})
 
         # 1. Add conversation history
