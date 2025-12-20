@@ -168,9 +168,9 @@ TECHNICIAN PROFILE IN ARABIC:
 Please provide a concise, professional proposal in Arabic (maximum 100 words) that showcases the technician's expertise and addresses the project requirements, along with a suggested price that reflects the technician's experience and market rates. The proposal should be in Arabic language only, maximum 100 words, professional and convincing."""
 
         # Use the AI client to generate the proposal
-        messages = [{"role": "user", "content": prompt}]
+        # messages = [{"role": "user", "content": prompt}]
         model = "openrouter-kwaipilot/kat-coder-pro:free"
-        response_content = AIClient.call_api(model, messages)
+        response_content = AIClient.call_llm(model, prompt)
 
         # Parse the response to extract proposal and price
         import json

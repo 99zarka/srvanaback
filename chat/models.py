@@ -33,3 +33,46 @@ class Message(models.Model):
 
     def __str__(self):
         return f"Message from {self.sender.username} in Conversation {self.conversation.id} at {self.timestamp}"
+
+class AIConversation(models.Model):
+    """Represents a conversation thread with the AI assistant."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_conversations')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"AI Conversation {self.id} for {self.user.username}"
+
+    def discard(self):
+        """Marks the conversation as inactive."""
+        self.is_active = False
+        self.save()
+
+    def get_history(self):
+        """Returns the message history for use with the AI client."""
+        return list(self.messages.values('role', 'content'))
+
+
+class AIConversationMessage(models.Model):
+    """Stores a single message (prompt or response) in an AI conversation."""
+    ROLE_CHOICES = (
+        ('user', 'User'),
+        ('assistant', 'Assistant'),
+    )
+    conversation = models.ForeignKey(AIConversation, on_delete=models.CASCADE, related_name='messages')
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        return f"{self.get_role_display()} message in AI Conversation {self.conversation.id} at {self.timestamp}"
