@@ -126,7 +126,7 @@ def chat(request):
 
     # --- RAG Integration ---
     rag_system = AIAssistantRAG()
-    relevant_context = rag_system.find_matches(prompt, 50) + rag_system.get_technician_matches(prompt,5)
+    relevant_context = rag_system.find_matches(prompt, 50) + rag_system.get_technician_matches(prompt,100)
     
     # --- AI Client Call ---
     model_to_use = AI_CHAT_MODEL
