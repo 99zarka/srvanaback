@@ -98,10 +98,10 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'create':
-            self.permission_classes = [IsClientUser] # Only ClientUser can create
+            self.permission_classes = [permissions.IsAuthenticated] # Allow any authenticated user to create
         elif self.action == 'list':
             # For list, only allow clients and admins. Technicians should not see generic order list
-            self.permission_classes = [IsAdminUser | IsClientUser]
+            self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
         elif self.action in ['update', 'partial_update', 'destroy']:
             self.permission_classes = [permissions.IsAuthenticated, IsAdminUser | IsClientOwnerOrAdmin | IsTechnicianOwnerOrAdmin]
         elif self.action == 'available_for_offer':
