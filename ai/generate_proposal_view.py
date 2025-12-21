@@ -24,7 +24,7 @@ class ChatHistoryView(APIView):
     permission_classes = [AllowAny]
 
     @swagger_auto_schema(
-        operation_description="Get the message history for the current active conversation.",
+        operation_description="Get the message history for the current active conversation. Supports both authenticated and anonymous users. Returns messages ordered by timestamp.",
         responses={
             200: openapi.Response('A list of messages in the conversation.', AIConversationMessageSerializer(many=True)),
         }
@@ -48,7 +48,7 @@ class ChatHistoryView(APIView):
 
 @swagger_auto_schema(
     method='post',
-    operation_description="Send a message to the AI assistant. Handles both authenticated and anonymous users.",
+    operation_description="Send a message to the AI assistant. Handles both authenticated and anonymous users. Supports text, image, and file inputs. Uses RAG system for enhanced responses with technician recommendations and project data extraction.",
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         properties={
@@ -64,7 +64,45 @@ class ChatHistoryView(APIView):
         required=['prompt']
     ),
     responses={
-        200: openapi.Response('{"reply": "AI-generated response"}'),
+        200: openapi.Response(
+            description='Enhanced AI response with project data and technician recommendations',
+            schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'reply': openapi.Schema(type=openapi.TYPE_STRING, description='AI response text'),
+                    'project_data': openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'service_type': openapi.Schema(type=openapi.TYPE_STRING),
+                            'location': openapi.Schema(type=openapi.TYPE_STRING),
+                            'problem_description': openapi.Schema(type=openapi.TYPE_STRING),
+                            'budget_range': openapi.Schema(type=openapi.TYPE_STRING),
+                            'urgency': openapi.Schema(type=openapi.TYPE_STRING),
+                            'scheduled_date': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                            'scheduled_time': openapi.Schema(type=openapi.TYPE_STRING, nullable=True)
+                        }
+                    ),
+                    'technician_recommendations': openapi.Schema(
+                        type=openapi.TYPE_ARRAY,
+                        items=openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                'name': openapi.Schema(type=openapi.TYPE_STRING),
+                                'rating': openapi.Schema(type=openapi.TYPE_NUMBER),
+                                'specialization': openapi.Schema(type=openapi.TYPE_STRING),
+                                'location': openapi.Schema(type=openapi.TYPE_STRING),
+                                'experience_years': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                'reasoning': openapi.Schema(type=openapi.TYPE_STRING)
+                            }
+                        )
+                    ),
+                    'show_post_project': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    'show_direct_hire': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                    'can_edit': openapi.Schema(type=openapi.TYPE_BOOLEAN)
+                }
+            )
+        ),
         400: openapi.Response('{"error": "Prompt is required."}'),
         500: openapi.Response('{"error": "Internal server error details"}')
     }
@@ -74,6 +112,7 @@ class ChatHistoryView(APIView):
 def chat(request):
     """
     Handles chat interactions with the AI assistant for both authenticated and anonymous users.
+    Enhanced to provide project data extraction and technician recommendations.
     """
     prompt = request.data.get('prompt')
     start_new = request.data.get('start_new', False) # Moved up for conditional check
@@ -131,9 +170,11 @@ def chat(request):
 
     # --- RAG Integration ---
     rag_system = AIAssistantRAG()
-    relevant_context = + rag_system.get_technician_matches(prompt,100) + rag_system.find_matches(prompt, 15)
+    technician_matches = rag_system.get_technician_matches(prompt, 100)
+    general_matches = rag_system.find_matches(prompt, 15)
+    relevant_context = technician_matches + general_matches
     
-    # --- AI Client Call ---
+    # --- Enhanced AI Client Call ---
     # Only call AI if there's actual content to process
     if prompt or image_url or file_url:
         model_to_use = AI_CHAT_MODEL
@@ -141,9 +182,76 @@ def chat(request):
             model_to_use = "gemini-2.5-flash"
 
         try:
+            # Enhanced prompt for structured response
+            enhanced_prompt = f"""You are Srvana Assistant, an expert in a services marketplace exclusively for Egypt.
+
+Based on the user's message and conversation history, perform these tasks:
+
+1. Provide a helpful response to the user's query
+2. Extract project requirements if applicable for API integration:
+   - Service type (plumbing, electrical, painting, etc.) - map to service_id if possible
+   - Location (governorate and detailed address) - format as "governorate, detailed_address"
+   - Problem description
+   - Budget range (if mentioned) - extract numeric value
+   - Preferred timing (date and time range)
+
+IMPORTANT: If the user wants to create a project, ensure ALL required fields are complete and not null. If critical information is missing, ask the user specific questions to gather the missing data before proceeding with project creation. Do not leave any critical fields as null if the user has provided the information or if it can be reasonably inferred from the conversation.
+
+3. If a technician is needed, use the provided context to recommend suitable technicians
+4. Return the response in this JSON format for direct API integration:
+
+{{
+  "reply": "Your response here",
+  "project_data": {{
+    "service_id": service_id_number_or_null,
+    "problem_description": "extracted problem description",
+    "requested_location": "governorate, detailed_address",
+    "scheduled_date": "YYYY-MM-DD format or null",
+    "scheduled_time_start": "HH:MM format or null",
+    "scheduled_time_end": "HH:MM format or null",
+    "order_type": "service_request",
+    "expected_price": numeric_value_or_null
+  }},
+  "offer_data": {{
+    "client_agreed_price": numeric_value_or_null,
+    "offer_description": "optional message",
+    "order": {{
+      "service": service_id_number_or_null,
+      "problem_description": "extracted problem description",
+      "requested_location": "governorate, detailed_address",
+      "scheduled_date": "YYYY-MM-DD format or null",
+      "scheduled_time_start": "HH:MM format or null",
+      "scheduled_time_end": "HH:MM format or null",
+      "order_type": "direct_hire"
+    }}
+  }},
+  "technician_recommendations": [
+    {{
+      "id": technician_id,
+      "name": "technician name",
+      "rating": rating,
+      "specialization": "technician specialization",
+      "location": "technician location",
+      "experience_years": experience,
+      "reasoning": "why this technician is a good match"
+    }}
+  ],
+  "show_post_project": true_or_false,
+  "show_direct_hire": true_or_false,
+  "can_edit": true_or_false
+}}
+
+IMPORTANT: This platform is exclusively for Egypt and serves Egyptian users only. All currency values must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only. Return API-ready JSON structure for direct form submission.
+
+User Message: {prompt}
+
+Context: {relevant_context}
+
+Return ONLY the JSON response, no additional text before or after."""
+
             ai_response = AIClient.call_llm(
                 model=model_to_use,
-                prompt=prompt,
+                prompt=enhanced_prompt,
                 history=history,
                 context=relevant_context, # Pass the retrieved context
                 image_urls=image_urls_list,
@@ -158,7 +266,24 @@ def chat(request):
                 content=ai_response
             )
 
-            return Response({"reply": ai_response}, status=status.HTTP_200_OK)
+            # Parse the JSON response
+            import json
+            import re
+            
+            # Extract JSON from response
+            json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                try:
+                    response_data = json.loads(json_str)
+                except json.JSONDecodeError:
+                    # Fallback to simple response if JSON parsing fails
+                    response_data = {"reply": ai_response}
+            else:
+                # Fallback to simple response if no JSON found
+                response_data = {"reply": ai_response}
+
+            return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
             error_message = f"An error occurred while communicating with the AI: {str(e)}"
             # Log the error for debugging
@@ -171,7 +296,7 @@ def chat(request):
 
 @swagger_auto_schema(
     method='get',
-    operation_description="Health check endpoint for AI service",
+    operation_description="Health check endpoint for AI service. Returns a simple status message to verify the AI service is operational.",
     responses={200: openapi.Response('{"message": "AI chat service is running."}')}
 )
 @api_view(['GET'])
@@ -183,7 +308,7 @@ def index(request):
 # ... (generate_proposal view remains the same)
 @swagger_auto_schema(
     method='post',
-    operation_description="Generate AI-powered proposal for a project",
+    operation_description="Generate AI-powered proposal for a project. Creates a professional proposal in Arabic based on project requirements and technician profile. Uses openrouter-kwaipilot/kat-coder-pro:free model. Returns response in JSON format with proposal text and suggested price.",
     request_body=openapi.Schema(
         type=openapi.TYPE_OBJECT,
         properties={
@@ -198,8 +323,8 @@ def index(request):
             schema=openapi.Schema(
                 type=openapi.TYPE_OBJECT,
                 properties={
-                    'proposal': openapi.Schema(type=openapi.TYPE_STRING, description='Generated proposal text'),
-                    'price': openapi.Schema(type=openapi.TYPE_NUMBER, description='Suggested price')
+                    'proposal': openapi.Schema(type=openapi.TYPE_STRING, description='Generated proposal text in Arabic (max 100 words)'),
+                    'price': openapi.Schema(type=openapi.TYPE_NUMBER, description='Suggested price in Egyptian Pounds (EGP)')
                 }
             )
         ),
