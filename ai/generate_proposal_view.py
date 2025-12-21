@@ -15,7 +15,7 @@ from chat.serializers import AIConversationMessageSerializer
 from ai.rag_system import AIAssistantRAG # Import AIAssistantRAG
 
 # This can be moved to a settings file
-AI_CHAT_MODEL = "openrouter-x-ai/grok-code-fast-1"
+AI_CHAT_MODEL = "openrouter-kwaipilot/kat-coder-pro:free"
 
 class ChatHistoryView(APIView):
     """
