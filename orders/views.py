@@ -172,15 +172,9 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         if user.user_type.user_type_name == 'admin':
             return base_queryset
-        elif user.user_type.user_type_name == 'client':
+        elif user.user_type.user_type_name in ['client' , 'technician'] :
             return base_queryset.filter(client_user=user)
-        elif user.user_type.user_type_name == 'technician':
-            # Technicians should not see generic order list (handled by get_permissions for 'list' action to deny)
-            # For generic 'list' action for technicians, return no orders.
-            if self.action == 'list':
-                return Order.objects.none()
-            # For other detail-like actions or custom actions specific to assigned technician, filter by assigned orders.
-            return base_queryset.filter(technician_user=user)
+
 
         return Order.objects.none() # Default fallback, should not be reached with proper user type handling
 
