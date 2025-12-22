@@ -193,7 +193,7 @@ Based on the user's message and conversation history, perform these tasks:
    - Location (governorate and detailed address) - format as "governorate, detailed_address"
    - Problem description
    - Budget range (if mentioned) - extract numeric value
-   - Preferred timing (date and time range)
+   - Preferred timing (date and time range) - if not specified, assume 09:00 to 17:00
 
 IMPORTANT: If the user wants to create a project, ensure ALL required fields are complete and not null. If critical information is missing, ask the user specific questions to gather the missing data before proceeding with project creation. Do not leave any critical fields as null if the user has provided the information or if it can be reasonably inferred from the conversation.
 
@@ -207,8 +207,8 @@ IMPORTANT: If the user wants to create a project, ensure ALL required fields are
     "problem_description": "extracted problem description",
     "requested_location": "governorate, detailed_address",
     "scheduled_date": "YYYY-MM-DD format or null",
-    "scheduled_time_start": "HH:MM format or null",
-    "scheduled_time_end": "HH:MM format or null",
+    "scheduled_time_start": "HH:MM format, defaults to 09:00 if not specified",
+    "scheduled_time_end": "HH:MM format, defaults to 17:00 if not specified",
     "order_type": "service_request",
     "expected_price": numeric_value_or_null
   }},
@@ -220,8 +220,8 @@ IMPORTANT: If the user wants to create a project, ensure ALL required fields are
       "problem_description": "extracted problem description",
       "requested_location": "governorate, detailed_address",
       "scheduled_date": "YYYY-MM-DD format or null",
-      "scheduled_time_start": "HH:MM format or null",
-      "scheduled_time_end": "HH:MM format or null",
+      "scheduled_time_start": "HH:MM format, defaults to 09:00 if not specified",
+      "scheduled_time_end": "HH:MM format, defaults to 17:00 if not specified",
       "order_type": "direct_hire"
     }}
   }},

@@ -1,13 +1,32 @@
+import json
+import re
 from rest_framework import serializers
 from .models import Conversation, Message, AIConversationMessage
 from users.serializers.user_serializers import PublicUserSerializer
 from filesupload.serializers.fields import CloudinaryFileField
 
 class AIConversationMessageSerializer(serializers.ModelSerializer):
+    content = serializers.SerializerMethodField()
+
     class Meta:
         model = AIConversationMessage
         fields = ['id', 'conversation', 'role', 'content', 'image_url', 'file_url', 'timestamp']
-    
+
+    def get_content(self, obj):
+        """Parse JSON from message content and return structured data."""
+        if obj.content and isinstance(obj.content, str):
+            try:
+                # Try to parse JSON from message content
+                json_match = re.search(r'\{[\s\S]*\}', obj.content)
+                if json_match:
+                    parsed = json.loads(json_match.group(0))
+                    if parsed.get('reply') and (parsed.get('project_data') or parsed.get('technician_recommendations')):
+                        return parsed
+            except (json.JSONDecodeError, KeyError):
+                # Not JSON or missing required fields, return None
+                pass
+        return None
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # Handle CloudinaryResource objects by converting to URL and fixing malformed URLs
@@ -18,13 +37,13 @@ class AIConversationMessageSerializer(serializers.ModelSerializer):
                 image_url = str(instance.image_url)
             else:
                 image_url = str(instance.image_url)
-            
+
             # Fix malformed URLs that have "image/upload/" prefix
             if image_url.startswith('image/upload/https://'):
                 image_url = image_url.replace('image/upload/https://', 'https://')
-            
+
             data['image_url'] = image_url
-        
+
         if instance.file_url:
             if hasattr(instance.file_url, 'url'):
                 file_url = instance.file_url.url
@@ -32,9 +51,9 @@ class AIConversationMessageSerializer(serializers.ModelSerializer):
                 file_url = str(instance.file_url)
             else:
                 file_url = str(instance.file_url)
-            
+
             data['file_url'] = file_url
-        
+
         return data
 
 class ConversationSerializer(serializers.ModelSerializer):
