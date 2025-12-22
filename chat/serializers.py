@@ -22,6 +22,8 @@ class AIConversationMessageSerializer(serializers.ModelSerializer):
                     parsed = json.loads(json_match.group(0))
                     if parsed.get('reply') and (parsed.get('project_data') or parsed.get('technician_recommendations')):
                         return parsed
+                else:
+                    return obj.content
             except (json.JSONDecodeError, KeyError):
                 # Not JSON or missing required fields, return None
                 pass
