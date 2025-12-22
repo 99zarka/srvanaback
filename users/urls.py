@@ -28,4 +28,8 @@ urlpatterns = [
     path('users/<int:pk>/offers/<int:offer_id>/respond-to-client-offer/', 
          UserViewSet.as_view({'post': 'respond_to_client_offer'}), 
          name='user-respond-to-client-offer'),
+    # Profile photo endpoint
+    path('users/<int:pk>/profile-photo/', 
+         UserViewSet.as_view({'get': 'profile_photo'}), 
+         name='user-profile-photo'),
 ]

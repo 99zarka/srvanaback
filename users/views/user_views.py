@@ -2,6 +2,8 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
+from django.shortcuts import get_object_or_404
+from django.http import HttpResponseRedirect
 from users.models import User, UserType
 from users.serializers import UserTypeSerializer, UserSerializer, PublicUserSerializer
 from api.permissions import IsAdminUser, IsOwnerOrAdmin, IsClientUser, IsTechnicianUser
@@ -133,6 +135,31 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         if self.action in ['retrieve', 'update', 'partial_update', 'destroy']:
             return base_queryset
         return base_queryset
+
+    @action(detail=True, methods=['get'])
+    def profile_photo(self, request, pk=None):
+        """
+        Redirect to the user's profile photo URL.
+        Usage: GET /api/users/{id}/profile-photo/
+        This endpoint will redirect to the actual Cloudinary image URL.
+        If user not found or has no photo, redirects to a UI Avatars placeholder.
+        """
+        try:
+            user = User.objects.get(user_id=pk)
+        except User.DoesNotExist:
+            # Redirect to UI Avatars placeholder when user not found
+            placeholder_url = f"https://ui-avatars.com/api/?name=Unknown+User&background=random&size=256"
+            return HttpResponseRedirect(redirect_to=placeholder_url)
+
+        if not user.profile_photo:
+            # Redirect to UI Avatars placeholder when user has no profile photo
+            full_name = f"{user.first_name} {user.last_name}".replace(' ', '+')
+            placeholder_url = f"https://ui-avatars.com/api/?name={full_name}&background=random&size=256"
+            return HttpResponseRedirect(redirect_to=placeholder_url)
+
+        # Get the Cloudinary URL and redirect to it
+        photo_url = user.profile_photo.url
+        return HttpResponseRedirect(redirect_to=photo_url)
 
     @action(detail=True, methods=['get'])
     def technician_detail(self, request, pk=None):
