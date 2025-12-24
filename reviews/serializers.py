@@ -6,7 +6,7 @@ from orders.models import Order
 class ReviewSerializer(serializers.ModelSerializer):
     reviewer = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
     technician = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-    order = serializers.PrimaryKeyRelatedField(queryset=Order.objects.all())
+    order = serializers.SerializerMethodField()
 
     class Meta:
         model = Review
@@ -14,6 +14,13 @@ class ReviewSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'reviewer': {'required': False, 'allow_null': True}
         }
+
+    def get_order(self, obj):
+        """Return serialized order data including client information"""
+        if obj.order:
+            from orders.serializers import OrderSerializer
+            return OrderSerializer(obj.order, context=self.context).data
+        return None
 
     def to_internal_value(self, data):
         # If reviewer is not provided, add the authenticated user as reviewer
