@@ -349,18 +349,17 @@ class PaymentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
 
         if not amount or not isinstance(amount, (int, float)) or float(amount) <= 0:
             raise ValidationError({'amount': 'Valid positive amount is required for withdrawal.'})
-        
-        if not payment_method_id:
-            raise ValidationError({'payment_method_id': 'Payment method is required for withdrawal.'})
 
         user = request.user
         amount = Decimal(str(amount)) # Ensure amount is Decimal
 
-        try:
-            # Use 'id' for primary key lookup
-            payment_method = PaymentMethod.objects.get(id=payment_method_id, user=user) 
-        except PaymentMethod.DoesNotExist:
-            raise ValidationError({'payment_method_id': 'Payment method not found or does not belong to the user.'})
+        payment_method = None
+        if payment_method_id:
+            try:
+                # Use 'id' for primary key lookup
+                payment_method = PaymentMethod.objects.get(id=payment_method_id, user=user) 
+            except PaymentMethod.DoesNotExist:
+                raise ValidationError({'payment_method_id': 'Payment method not found or does not belong to the user.'})
 
         with db_transaction.atomic():
             user.refresh_from_db() # Lock user row
