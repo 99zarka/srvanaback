@@ -7,6 +7,8 @@ from django.db.models import Sum, F, ExpressionWrapper, DecimalField, Avg
 from datetime import timedelta, datetime
 from django.utils import timezone
 import cloudinary.uploader
+from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import rest_framework as filters
 
 from .models import TechnicianAvailability, TechnicianSkill, VerificationDocument
 from .serializers import TechnicianAvailabilitySerializer, TechnicianSkillSerializer, VerificationDocumentSerializer
@@ -387,6 +389,32 @@ class WorkerReviewsAPIView(APIView):
         return Response(data)
 
 
+class VerificationFilter(filters.FilterSet):
+    verification_status = filters.ChoiceFilter(choices=[
+        ('Pending', 'Pending'),
+        ('Approved', 'Approved'), 
+        ('Rejected', 'Rejected')
+    ])
+    upload_date_gte = filters.DateFilter(field_name='upload_date', lookup_expr='gte')
+    upload_date_lte = filters.DateFilter(field_name='upload_date', lookup_expr='lte')
+    document_type = filters.CharFilter(field_name='document_type')
+    technician_name = filters.CharFilter(method='filter_by_name')
+    
+    class Meta:
+        model = VerificationDocument
+        fields = ['verification_status', 'document_type']
+
+    def filter_by_name(self, queryset, name, value):
+        """Filter by technician first name or last name"""
+        if value:
+            return queryset.filter(
+                technician_user__first_name__icontains=value
+            ) | queryset.filter(
+                technician_user__last_name__icontains=value
+            )
+        return queryset
+
+
 class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     """
     API endpoint that allows Verification Documents to be viewed or edited.
@@ -425,6 +453,8 @@ class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelView
     queryset = VerificationDocument.objects.all().order_by('doc_id')
     serializer_class = VerificationDocumentSerializer
     owner_field = 'technician_user'
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = VerificationFilter
 
     def get_permissions(self):
         if self.action in ['approve', 'reject']:
