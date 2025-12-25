@@ -204,7 +204,7 @@ class EarningsSummaryAPIView(APIView):
         # Total earnings
         total_earnings = Order.objects.filter(
             technician_user=user,
-            order_status='completed'
+            order_status='COMPLETED'
         ).aggregate(
             total=Sum('final_price')
         )['total'] or 0.00
@@ -212,7 +212,7 @@ class EarningsSummaryAPIView(APIView):
         # Weekly earnings
         weekly_earnings = Order.objects.filter(
             technician_user=user,
-            order_status='completed',
+            order_status='COMPLETED',
             job_completion_timestamp__isnull=False,
             job_completion_timestamp__gte=start_of_week
         ).aggregate(
@@ -222,7 +222,7 @@ class EarningsSummaryAPIView(APIView):
         # Monthly earnings
         monthly_earnings = Order.objects.filter(
             technician_user=user,
-            order_status='completed',
+            order_status='COMPLETED',
             job_completion_timestamp__isnull=False,
             job_completion_timestamp__gte=start_of_month
         ).aggregate(
@@ -232,7 +232,7 @@ class EarningsSummaryAPIView(APIView):
         # Number of completed orders
         completed_orders_count = Order.objects.filter(
             technician_user=user,
-            order_status='completed'
+            order_status='COMPLETED'
         ).count()
 
         # Number of pending orders
@@ -268,27 +268,38 @@ class WorkerSummaryAPIView(APIView):
         if not user.is_authenticated or user.user_type.user_type_name not in ['technician', 'admin']:
             raise PermissionDenied("Only authenticated technicians and admins can view worker summaries.")
 
-        # Calculate active tasks (e.g., in_progress, pending, accepted)
+        # Calculate active tasks - include all statuses that represent ongoing work
+        active_statuses = [
+            'pending', 'accepted', 'in_progress', 
+            'AWAITING_RELEASE', 'AWAITING_TECHNICIAN_RESPONSE', 'AWAITING_CLIENT_ESCROW_CONFIRMATION'
+        ]
         active_tasks = Order.objects.filter(
             technician_user=user,
-            order_status__in=['pending', 'accepted', 'in_progress']
+            order_status__in=active_statuses
         ).count()
 
-        # Calculate completed tasks
+        # Calculate completed tasks - use uppercase status as per database
         completed_tasks = Order.objects.filter(
             technician_user=user,
-            order_status='completed'
+            order_status='COMPLETED'
         ).count()
 
         # Calculate total earnings (sum of final_price from completed orders)
         total_earnings = Order.objects.filter(
             technician_user=user,
-            order_status='completed'
+            order_status='COMPLETED'
         ).aggregate(total=Sum('final_price'))['total'] or 0.00
 
-        # Calculate average rating (from reviews where this technician is the subject)
+        # Calculate average rating from reviews of completed orders only
+        # Get IDs of completed orders to filter reviews
+        completed_order_ids = Order.objects.filter(
+            technician_user=user,
+            order_status='COMPLETED'
+        ).values_list('order_id', flat=True)
+        
         average_rating = Review.objects.filter(
-            technician=user
+            technician=user,
+            order__order_id__in=completed_order_ids
         ).aggregate(avg_rating=Avg('rating'))['avg_rating'] or 0.00
 
         data = {
@@ -325,7 +336,7 @@ class MonthlyPerformanceAPIView(APIView):
         # Completed tasks this month
         completed_tasks_month = Order.objects.filter(
             technician_user=user,
-            order_status='completed',
+            order_status='COMPLETED',
             job_completion_timestamp__gte=start_of_month_datetime,
             job_completion_timestamp__lte=end_of_month_datetime
         ).count()
@@ -333,7 +344,7 @@ class MonthlyPerformanceAPIView(APIView):
         # Earnings this month
         earnings_month = Order.objects.filter(
             technician_user=user,
-            order_status='completed',
+            order_status='COMPLETED',
             job_completion_timestamp__gte=start_of_month_datetime,
             job_completion_timestamp__lte=end_of_month_datetime
         ).aggregate(
