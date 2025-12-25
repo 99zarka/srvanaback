@@ -4,8 +4,11 @@ from rest_framework.response import Response
 from django.db import transaction as db_transaction
 from django.utils import timezone
 from decimal import Decimal # Import Decimal
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
 from .models import Dispute, DisputeResponse
 from .serializers import DisputeSerializer, DisputeResponseSerializer
+from .pagination import DisputePagination
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsDisputeParticipantOrAdmin # Added IsDisputeParticipantOrAdmin
 from notifications.utils import create_notification
 from notifications.arabic_translations import ARABIC_NOTIFICATIONS
@@ -60,6 +63,12 @@ class DisputeViewSet(viewsets.ModelViewSet):
     queryset = Dispute.objects.all().order_by('-created_at')
     serializer_class = DisputeSerializer
     lookup_field = 'dispute_id'
+    
+    # Add filtering and pagination support
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ['status', 'resolution']
+    search_fields = ['order__order_id', 'initiator__first_name', 'initiator__last_name', 'order__service__service_name', 'order__service__arabic_name']
+    pagination_class = DisputePagination  # Use custom pagination class
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'resolve']:
