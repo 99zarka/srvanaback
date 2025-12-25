@@ -9,6 +9,7 @@ from django.utils import timezone
 import cloudinary.uploader
 from django_filters.rest_framework import DjangoFilterBackend
 from django_filters import rest_framework as filters
+from rest_framework.pagination import PageNumberPagination
 
 from .models import TechnicianAvailability, TechnicianSkill, VerificationDocument
 from .serializers import TechnicianAvailabilitySerializer, TechnicianSkillSerializer, VerificationDocumentSerializer
@@ -390,11 +391,7 @@ class WorkerReviewsAPIView(APIView):
 
 
 class VerificationFilter(filters.FilterSet):
-    verification_status = filters.ChoiceFilter(choices=[
-        ('Pending', 'Pending'),
-        ('Approved', 'Approved'), 
-        ('Rejected', 'Rejected')
-    ])
+    verification_status = filters.CharFilter(method='filter_verification_status')
     upload_date_gte = filters.DateFilter(field_name='upload_date', lookup_expr='gte')
     upload_date_lte = filters.DateFilter(field_name='upload_date', lookup_expr='lte')
     document_type = filters.CharFilter(field_name='document_type')
@@ -403,6 +400,23 @@ class VerificationFilter(filters.FilterSet):
     class Meta:
         model = VerificationDocument
         fields = ['verification_status', 'document_type']
+
+    def filter_verification_status(self, queryset, name, value):
+        """Filter by verification status with case-insensitive matching"""
+        if value:
+            # Normalize the input to match expected capitalized values
+            status_map = {
+                'pending': 'Pending',
+                'approved': 'Approved',
+                'rejected': 'Rejected',
+                'PENDING': 'Pending',
+                'APPROVED': 'Approved',
+                'REJECTED': 'Rejected'
+            }
+            
+            normalized_status = status_map.get(value.lower(), value)
+            return queryset.filter(verification_status=normalized_status)
+        return queryset
 
     def filter_by_name(self, queryset, name, value):
         """Filter by technician first name or last name"""
@@ -413,6 +427,15 @@ class VerificationFilter(filters.FilterSet):
                 technician_user__last_name__icontains=value
             )
         return queryset
+
+
+class VerificationDocumentPagination(PageNumberPagination):
+    """
+    Custom pagination class for Verification Documents that allows configurable page_size.
+    """
+    page_size = 20  # Default page size
+    page_size_query_param = 'page_size'  # Allow clients to specify page_size
+    max_page_size = 100  # Maximum page size to prevent abuse
 
 
 class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
@@ -455,6 +478,7 @@ class VerificationDocumentViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelView
     owner_field = 'technician_user'
     filter_backends = [DjangoFilterBackend]
     filterset_class = VerificationFilter
+    pagination_class = VerificationDocumentPagination
 
     def get_permissions(self):
         if self.action in ['approve', 'reject']:
