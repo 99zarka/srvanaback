@@ -757,6 +757,47 @@ class OrderViewSet(viewsets.ModelViewSet):
             'dispute_id': dispute.dispute_id
         }, status=status.HTTP_200_OK)
 
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def dispute_order(self, request, order_id=None):
+        """
+        Return order details for dispute purposes.
+        Only accessible by the client who created the order, assigned technician, or admin.
+        Permissions: Authenticated User (client owner, technician owner) or Admin User.
+        Usage: GET /api/orders/{order_id}/dispute-order/
+        """
+        user = request.user
+        
+        # Use the same queryset logic as WorkerTasksViewSet to find orders for technicians
+        # This ensures technicians can access orders where they are the technician_user
+        try:
+            order = Order.objects.select_related(
+                'client_user', 
+                'client_user__user_type',
+                'technician_user', 
+                'technician_user__user_type',
+                'service'
+            ).annotate(
+                review_rating=models.F('review__rating'),
+                review_comment=models.F('review__comment')
+            ).prefetch_related(
+                'project_offers',
+                'project_offers__technician_user',
+                'project_offers__technician_user__user_type',
+                'disputes'
+            ).get(order_id=order_id)
+        except Order.DoesNotExist:
+            raise NotFound("Order not found.")
+
+        # Check if user has access to this order for dispute purposes
+        if not (order.client_user == user or \
+                (order.technician_user == user and user.user_type.user_type_name == 'technician') or \
+                user.user_type.user_type_name == 'admin'):
+            raise PermissionDenied("You don't have permission to view this order for dispute purposes.")
+
+        # Serialize the order with full details
+        serializer = self.get_serializer(order)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsClientOwnerOrAdmin | IsAdminUser])
     def cancel_order(self, request, order_id=None):
         """
@@ -1074,7 +1115,7 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = OrderPagination
 
     def get_permissions(self):
-        self.permission_classes = [IsTechnicianUser]
+        self.permission_classes = [permissions.IsAuthenticated]
         return [permission() for permission in self.permission_classes]
 
     def get_queryset(self):
@@ -1082,9 +1123,9 @@ class WorkerTasksViewSet(viewsets.ReadOnlyModelViewSet):
         if not user.is_authenticated:
             return Order.objects.none()
 
-        # Only technicians can access this endpoint
-        if user.user_type.user_type_name != 'technician':
-            return Order.objects.none()
+        # All authenticated users can access this endpoint, but only technicians will have assigned orders.
+        # The queryset will naturally filter for orders where technician_user=user.
+        # No explicit check for user_type is needed here.
 
         # Start with orders assigned to this technician
         queryset = Order.objects.filter(technician_user=user).select_related(
