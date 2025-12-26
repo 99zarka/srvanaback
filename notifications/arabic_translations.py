@@ -49,8 +49,8 @@ ARABIC_NOTIFICATIONS = {
     'system_error_title': 'خطأ في النظام',
     'system_error_message': 'حدث خطأ أثناء التحرير التلقائي للطلب #{order_id}: {error}',
     
-    # Cancellation messages
-    'order_cancelled_refund_message': 'تم إلغاء الطلب #{order_id} وتم إعادة {amount} دولار أمريكي إلى رصيدك المتاح.',
-    'order_cancelled_tech_message': 'تم إلغاء الطلب #{order_id} من قبل العميل/المسؤول. تم إعادة الأموال ({amount} دولار أمريكي) إلى العميل.',
+    # Cancellation messages (using EGP)
+    'order_cancelled_refund_message': 'تم إلغاء الطلب #{order_id} وتم إعادة {amount} جنيه مصري إلى رصيدك المتاح.',
+    'order_cancelled_tech_message': 'تم إلغاء الطلب #{order_id} من قبل العميل/المسؤول. تم إعادة الأموال ({amount} جنيه مصري) إلى العميل.',
     'order_cancelled_no_funds_message': 'تم إلغاء الطلب #{order_id}.',
 }
