@@ -6,7 +6,7 @@ from django.db import models
 from .models import Order, ProjectOffer
 from rest_framework.exceptions import PermissionDenied, NotFound, ValidationError
 from rest_framework.pagination import PageNumberPagination
-from .serializers import OrderSerializer, ProjectOfferSerializer, ProjectOfferDetailSerializer, PublicOrderSerializer
+from .serializers import OrderSerializer, ProjectOfferSerializer, ProjectOfferDetailSerializer, PublicOrderSerializer, ProjectOfferWithOrderSerializer
 from api.permissions import IsAdminUser, IsClientUser, IsTechnicianUser, IsClientOwnerOrAdmin, IsTechnicianOwnerOrAdmin
 from api.mixins import OwnerFilteredQuerysetMixin
 from notifications.models import Notification # Keep this for now, will replace usage with utils
@@ -1010,6 +1010,7 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     def client_offers_for_technician(self, request):
         """
         Return a list of client-initiated offers awaiting response for the authenticated technician.
+        Includes complete order information for each offer.
         Permissions: Authenticated Technician User only.
         Usage: GET /api/orders/projectoffers/client-offers-for-technician/
         """
@@ -1017,6 +1018,7 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         if not user.is_authenticated or user.user_type.user_type_name != 'technician':
             raise PermissionDenied("Only technicians can view client offers.")
 
+        # Optimized queryset with comprehensive prefetching to minimize database queries
         client_offers = ProjectOffer.objects.filter(
             offer_initiator='client',
             technician_user=user,
@@ -1025,15 +1027,25 @@ class ProjectOfferViewset(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
             'order',
             'order__client_user',
             'order__client_user__user_type',
-            'order__service'
+            'order__service',
+            'order__service__category',
+            'technician_user',
+            'technician_user__user_type'
+        ).prefetch_related(
+            'order__project_offers',
+            'order__project_offers__technician_user',
+            'order__project_offers__technician_user__user_type',
+            'order__disputes',
+            'order__client_user__user_type',
+            'technician_user__user_type'
         ).order_by('-offer_date', '-offer_id')
 
         page = self.paginate_queryset(client_offers)
         if page is not None:
-            serializer = self.get_serializer(page, many=True, context={'request': request})
+            serializer = ProjectOfferWithOrderSerializer(page, many=True, context={'request': request})
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(client_offers, many=True, context={'request': request})
+        serializer = ProjectOfferWithOrderSerializer(client_offers, many=True, context={'request': request})
         return Response(serializer.data)
 
     @action(detail=True, methods=['put', 'patch'], permission_classes=[IsClientUser])

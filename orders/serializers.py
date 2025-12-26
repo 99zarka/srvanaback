@@ -24,6 +24,58 @@ class ProjectOfferDetailSerializer(serializers.ModelSerializer):
         model = ProjectOffer
         fields = ['offer_id', 'offered_price', 'offer_description', 'offer_date', 'status', 'technician_user']
 
+class ProjectOfferWithOrderSerializer(serializers.ModelSerializer):
+    """
+    Serializer that includes both offer details and complete order information.
+    This avoids circular references by using a lightweight order serializer.
+    """
+    technician_user = PublicUserSerializer(read_only=True)
+    order = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectOffer
+        fields = [
+            'offer_id', 'technician_user', 'offer_initiator', 'order', 
+            'offered_price', 'offer_description', 'offer_date', 'status'
+        ]
+
+    def get_order(self, obj):
+        """
+        Get complete order information for the offer.
+        Uses a lightweight order serializer to avoid circular references.
+        """
+        # Get the order with optimized prefetching
+        order = obj.order
+        
+        # Create a lightweight order serializer that excludes project_offers to prevent circular reference
+        order_data = {
+            'order_id': order.order_id,
+            'service': ServiceSerializer(order.service).data,
+            'client_user': PublicUserSerializer(order.client_user).data,
+            'problem_description': order.problem_description,
+            'requested_location': order.requested_location,
+            'scheduled_date': order.scheduled_date,
+            'scheduled_time_start': order.scheduled_time_start,
+            'scheduled_time_end': order.scheduled_time_end,
+            'order_type': order.order_type,
+            'creation_timestamp': order.creation_timestamp,
+            'order_status': order.order_status,
+            'final_price': order.final_price,
+            'expected_price': order.expected_price,
+            'job_start_timestamp': order.job_start_timestamp,
+            'job_completion_timestamp': order.job_completion_timestamp,
+            'job_done_timestamp': order.job_done_timestamp,
+            'auto_release_date': order.auto_release_date,
+            'commission_percentage': order.commission_percentage,
+            'platform_commission_amount': order.platform_commission_amount,
+            'service_fee_percentage': order.service_fee_percentage,
+            'service_fee_amount': order.service_fee_amount,
+            'total_amount_paid_by_client': order.total_amount_paid_by_client,
+            'amount_to_technician': order.amount_to_technician,
+        }
+        
+        return order_data
+
 class PublicOrderSerializer(serializers.ModelSerializer):
     client_user = PublicUserSerializer(read_only=True)
     service = ServiceSerializer(read_only=True)
