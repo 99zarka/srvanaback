@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
@@ -114,6 +114,9 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
     pagination_class = UserPagination
     queryset = User.objects.all().order_by('user_id')
     serializer_class = UserSerializer
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['registration_date', 'user_id', 'username', 'email']
+    ordering = ['-registration_date']
     owner_field = 'user_id'
 
     def get_permissions(self):
