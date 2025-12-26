@@ -192,8 +192,12 @@ def get_notification_frontend_url(notification):
             # Fallback to related entity logic for unknown notification types
             if notification.related_order:
                 order_id = notification.related_order.order_id
-                return f'/dashboard/orders-offers/view/{order_id}'
-            
+                # Check if the user is the assigned technician of the order
+                if notification.user == notification.related_order.technician_user:
+                    return f'/dashboard/tasks/{order_id}'
+                else:
+                    return f'/dashboard/orders-offers/view/{order_id}'
+
             if notification.related_offer:
                 return '/dashboard/orders-offers'
             
