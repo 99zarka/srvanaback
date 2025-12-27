@@ -269,7 +269,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
         },
-        'CONN_MAX_AGE': 0,  # Disable persistent connections to reduce open connections
+        'CONN_MAX_AGE': 30,  # Disable persistent connections to reduce open connections
     }
 }
 
