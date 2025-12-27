@@ -169,10 +169,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         order_status = self.request.query_params.get('order_status')
         if order_status:
             base_queryset = base_queryset.filter(order_status=order_status)
-
-        if user.user_type.user_type_name == 'admin':
+            
+        return_all = self.request.query_params.get('return_all') or ""
+        if user.user_type.user_type_name == 'admin' and return_all.lower() == 'true':
             return base_queryset
-        elif user.user_type.user_type_name in ['client' , 'technician'] :
+        elif user.user_type.user_type_name in ['client' , 'technician', 'admin'] :
             return base_queryset.filter(client_user=user)
 
 
