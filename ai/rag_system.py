@@ -57,8 +57,11 @@ class AIAssistantRAG:
         
         print("Building technician embeddings...")
         
-        # Get all technicians
-        technicians = User.objects.filter(user_type__user_type_name='technician')
+        # Get all technicians with optimized queries
+        technicians = User.objects.filter(
+            user_type__user_type_name='technician'
+        ).select_related('user_type').prefetch_related('received_reviews')
+        
         serializer = UserSerializer(technicians, many=True)
         tech_data = serializer.data
         
@@ -99,8 +102,15 @@ class AIAssistantRAG:
         
         print("Building order embeddings...")
         
-        # Get all orders
-        orders = Order.objects.all()
+        # Get all orders with optimized queries
+        orders = Order.objects.select_related(
+            'client_user', 'client_user__user_type', 'service'
+        ).prefetch_related(
+            'client_user__received_reviews',
+            'project_offers__technician_user',
+            'project_offers__technician_user__user_type'
+        )
+        
         serializer = PublicOrderSerializer(orders, many=True)
         order_data = serializer.data
         

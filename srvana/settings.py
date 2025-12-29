@@ -270,7 +270,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
         },
-        'CONN_MAX_AGE': 30,  # Disable persistent connections to reduce open connections
+        'CONN_MAX_AGE': 600,  # Increased to 10 minutes for RAG system optimization
     }
 }
 
