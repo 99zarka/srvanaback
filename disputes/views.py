@@ -343,7 +343,7 @@ class DisputeViewSet(viewsets.ModelViewSet):
         order = dispute.order
 
         # Determine if user is client or technician
-        is_client = user == dispute.initiator  # initiator is the client in the dispute
+        is_client = user == order.client_user
         is_technician = user == order.technician_user
         is_admin = user.user_type.user_type_name == 'admin'
 
