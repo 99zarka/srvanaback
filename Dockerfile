@@ -22,5 +22,5 @@ RUN pip install uv && python -m uv pip install --system --no-cache -r requiremen
 # Expose port 8000 to the outside world
 EXPOSE 8000
 
-# Run Django migrations and start Gunicorn
-CMD ["sh", "-c", "python manage.py migrate && gunicorn srvana.wsgi:application --bind 0.0.0.0:8000"]
+# Run Django migrations, build AI embeddings, and start Gunicorn
+CMD ["sh", "-c", "python manage.py migrate && python manage.py rebuild_ai_index && gunicorn srvana.wsgi:application --bind 0.0.0.0:8000"]
