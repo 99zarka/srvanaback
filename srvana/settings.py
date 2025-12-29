@@ -270,7 +270,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
         },
-        'CONN_MAX_AGE': 180,  # Increased to 10 minutes for RAG system optimization
+        'CONN_MAX_AGE': 3,  # Increased to 10 minutes for RAG system optimization
     }
 }
 
