@@ -437,3 +437,66 @@ class CreateOrderFromAIView(APIView):
                 'error': str(e),
                 'message': 'An error occurred while creating the order.'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RebuildAIIndexView(APIView):
+    """
+    API endpoint to rebuild the AI assistant embeddings index.
+
+    POST /api/ai/ai-assistant/rebuild-index/
+
+    Triggers a rebuild of the AI assistant's RAG system index.
+    This rebuilds embeddings for all technicians, services, and orders.
+    Only call this when you need to refresh the AI's knowledge base.
+
+    Request Body: (empty)
+
+    Response:
+    {
+        "message": "AI index rebuilt successfully",
+        "status": "success",
+        "total_embeddings": 150
+    }
+    """
+
+    permission_classes = []  # No authentication required for demo
+
+    @swagger_auto_schema(
+        responses={
+            200: openapi.Response('Successful response', openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'message': openapi.Schema(type=openapi.TYPE_STRING, description='Success message'),
+                    'status': openapi.Schema(type=openapi.TYPE_STRING, description='Status of the operation'),
+                    'total_embeddings': openapi.Schema(type=openapi.TYPE_INTEGER, description='Total number of embeddings created')
+                }
+            )),
+            500: openapi.Response('Error response', openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'error': openapi.Schema(type=openapi.TYPE_STRING),
+                    'message': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            ))
+        }
+    )
+    def post(self, request):
+        try:
+            # Initialize RAG system and rebuild index
+            rag = AIAssistantRAG()
+            rag.build_index()
+
+            # Count total embeddings
+            total_embeddings = len(rag.embeddings)
+
+            return Response({
+                'message': 'AI index rebuilt successfully',
+                'status': 'success',
+                'total_embeddings': total_embeddings
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': str(e),
+                'message': 'An error occurred while rebuilding the AI index.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

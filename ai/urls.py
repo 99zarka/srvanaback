@@ -13,4 +13,5 @@ urlpatterns = [
     path('ai-assistant/chat/', views.ChatView.as_view(), name='ai_chat_deprecated'),
     path('ai-assistant/recommend-technicians/', views.RecommendTechniciansView.as_view(), name='ai_assistant_recommend_technicians'),
     path('ai-assistant/create-order-from-ai/', views.CreateOrderFromAIView.as_view(), name='ai_assistant_create_order'),
+    path('ai-assistant/rebuild-index/', views.RebuildAIIndexView.as_view(), name='ai_assistant_rebuild_index'),
 ]
