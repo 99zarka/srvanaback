@@ -233,6 +233,7 @@ IMPORTANT: If the user wants to create a project, ensure ALL required fields are
       "specialization": "technician specialization",
       "location": "technician location",
       "experience_years": experience,
+      "jobs_completed": num_jobs_completed,
       "reasoning": "why this technician is a good match"
     }}
   ],
