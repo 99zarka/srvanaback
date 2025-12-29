@@ -7,12 +7,13 @@ class ReviewSerializer(serializers.ModelSerializer):
     reviewer = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
     technician = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     order = serializers.SerializerMethodField()
+    order_id = serializers.IntegerField(write_only=True)
 
     class Meta:
         model = Review
         fields = '__all__'
         extra_kwargs = {
-            'reviewer': {'required': False, 'allow_null': True}
+            'reviewer': {'required': False, 'allow_null': True},
         }
 
     def get_order(self, obj):
@@ -22,13 +23,25 @@ class ReviewSerializer(serializers.ModelSerializer):
             return OrderSerializer(obj.order, context=self.context).data
         return None
 
-    def to_internal_value(self, data):
+    def validate(self, attrs):
         # If reviewer is not provided, add the authenticated user as reviewer
         request = self.context.get('request')
-        if request and request.method == 'POST' and 'reviewer' not in data:
-            data = data.copy()
-            data['reviewer'] = str(request.user.user_id)
-        return super().to_internal_value(data)
+        if request and request.method == 'POST' and 'reviewer' not in attrs:
+            attrs['reviewer'] = request.user
+        
+        # Handle order_id to order conversion
+        if 'order_id' in attrs:
+            try:
+                order_id = attrs.pop('order_id')
+                from orders.models import Order
+                order = Order.objects.get(order_id=order_id)
+                attrs['order'] = order
+            except Order.DoesNotExist:
+                raise serializers.ValidationError({'order_id': 'Order with this ID does not exist.'})
+        else:
+            raise serializers.ValidationError({'order_id': 'This field is required.'})
+        
+        return super().validate(attrs)
 
 
 class PublicReviewSerializer(serializers.ModelSerializer):
