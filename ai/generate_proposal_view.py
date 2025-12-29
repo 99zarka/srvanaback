@@ -237,7 +237,7 @@ IMPORTANT: If the user wants to create a project, ensure ALL required fields are
       "reasoning": "why this technician is a good match"
     }}
   ],
-  "show_post_project": true_or_false,
+  "show_post_project": true_or_false only true when project data is 75% ready or more,
   "show_direct_hire": true_or_false,
   "can_edit": true_or_false
 }}
