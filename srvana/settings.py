@@ -127,7 +127,7 @@ if IS_PRODUCTION:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     USE_X_FORWARDED_HOST = True
     SECURE_SSL_REDIRECT = True # Force HTTPS redirects in production
-    API_DOMAIN = 'https://srvanaback-268062404120.europe-west1.run.app'
+    API_DOMAIN = 'https://srvanabackend-268062404120.us-central1.run.app'
     SWAGGER_SETTINGS['DEFAULT_API_URL'] = API_DOMAIN
     SWAGGER_SETTINGS['SCHEMES'] = ['https']
 else:
@@ -195,8 +195,8 @@ CORS_ALLOWED_ORIGINS = [
     "https://99zarka.github.io",
     "http://www.srvana.tech",
     "https://www.srvana.tech",
-    "http://srvanaback-268062404120.europe-west1.run.app",
-    "https://srvanaback-268062404120.europe-west1.run.app" # The backend's own URL might need to be allowed
+    "http://srvanabackend-268062404120.us-central1.run.app/",
+    "https://srvanabackend-268062404120.us-central1.run.app/" # The backend's own URL might need to be allowed
 ]
 
 CORS_ALLOW_CREDENTIALS = True # Allow credentials (e.g., Authorization headers)
