@@ -15,6 +15,8 @@ COPY . /app
 # Install uv and then use it to install requirements
 RUN pip install uv && python -m uv pip install --system --no-cache -r requirements.txt
 
+RUN python manage.py migrate 
+RUN python manage.py rebuild_ai_index
 
 # Install any needed packages specified in requirements.txt
 # RUN pip install --no-cache-dir -r requirements.txt
@@ -23,4 +25,4 @@ RUN pip install uv && python -m uv pip install --system --no-cache -r requiremen
 EXPOSE 8000
 
 # Run Django migrations, build AI embeddings, and start Gunicorn
-CMD ["sh", "-c", "python manage.py migrate && python manage.py rebuild_ai_index && gunicorn srvana.wsgi:application --bind 0.0.0.0:8000"]
+CMD ["sh", "-c", "gunicorn srvana.wsgi:application --bind 0.0.0.0:8000"]
