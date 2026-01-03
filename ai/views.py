@@ -303,8 +303,8 @@ class RecommendTechniciansView(APIView):
                     'error': 'user_issue is required'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Get RAG system
-            rag = AIAssistantRAG()
+            # Get RAG system with long-running database connection
+            rag = AIAssistantRAG(db_alias='long_running')
             
             # Find technician matches
             tech_matches = rag.get_technician_matches(user_issue, top_k)

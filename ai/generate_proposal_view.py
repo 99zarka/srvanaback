@@ -169,7 +169,7 @@ def chat(request):
     file_urls_list = [file_url] if file_url else None
 
     # --- RAG Integration ---
-    rag_system = AIAssistantRAG()
+    rag_system = AIAssistantRAG(db_alias='long_running')
     technician_matches = rag_system.get_technician_matches(prompt, 100)
     general_matches = rag_system.find_matches(prompt, 15)
     relevant_context = technician_matches + general_matches
