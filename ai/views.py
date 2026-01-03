@@ -482,8 +482,8 @@ class RebuildAIIndexView(APIView):
     )
     def post(self, request):
         try:
-            # Initialize RAG system with long-running database connection and rebuild index
-            rag = AIAssistantRAG(db_alias='long_running')
+            # Initialize RAG system and rebuild index
+            rag = AIAssistantRAG()
             rag.build_index()
 
             # Count total embeddings
