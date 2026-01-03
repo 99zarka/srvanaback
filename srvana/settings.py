@@ -270,19 +270,7 @@ DATABASES = {
         'OPTIONS': {
             'sslmode': 'require',
         },
-        'CONN_MAX_AGE': 600,
-    },
-    'long_running': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'defaultdb',
-        'USER': 'avnadmin',
-        'PASSWORD': 'AVNS_5Z_eP5ZxbwMflRkUbSn',
-        'HOST': 'srvana-mohamedmanchestrawy-test.f.aivencloud.com',
-        'PORT': '15292',
-        'OPTIONS': {
-            'sslmode': 'require',
-        },
-        'CONN_MAX_AGE': 600,  # 10 minutes for long-running operations like AI index rebuild
+        'CONN_MAX_AGE': 180,  # Increased to 10 minutes for RAG system optimization
     }
 }
 
