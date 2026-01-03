@@ -572,7 +572,7 @@ if __name__ == "__main__":
     # Test 4: Prompt with RAG context
     print("\n--- Test 4: Prompt with RAG context ---")
     try:
-        rag = AIAssistantRAG(db_alias='long_running')
+        rag = AIAssistantRAG()
         context = rag.find_matches("who is the best plumber?")
         print(f"Context being sent: {json.dumps(context, indent=2)}")
 

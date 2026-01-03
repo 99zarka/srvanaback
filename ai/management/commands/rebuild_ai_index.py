@@ -6,7 +6,7 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         self.stdout.write('Building AI Assistant RAG index...')
-        rag = AIAssistantRAG(db_alias='long_running')
+        rag = AIAssistantRAG()
         rag.build_index()
         self.stdout.write(
             self.style.SUCCESS('Successfully rebuilt AI index')
