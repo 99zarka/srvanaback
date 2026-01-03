@@ -164,11 +164,11 @@ class AIAssistantRAG:
         )
 
         # Process orders in batches to reduce memory usage
-        batch_size = 5
+        batch_size = 1  # Process one order at a time for minimum memory usage
         total_orders = orders.count()
         processed = 0
 
-        print(f"Processing {total_orders} orders in batches of {batch_size}...")
+        print(f"Processing {total_orders} orders individually (batch size: {batch_size})...")
 
         for i in range(0, total_orders, batch_size):
             batch_orders = orders[i:i + batch_size]
