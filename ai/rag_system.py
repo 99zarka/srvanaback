@@ -51,57 +51,109 @@ class AIAssistantRAG:
         print(f"Index built with {len(self.embeddings)} embeddings for Egyptian marketplace")
     
     def _build_technician_embeddings(self):
-        """Build embeddings for all technicians."""
+        """Build embeddings for all technicians using batch processing."""
+        import gc
         from users.serializers.user_serializers import UserSerializer
         from users.models import User
-        
+
         print("Building technician embeddings...")
-        
+
         # Get all technicians with optimized queries
         technicians = User.objects.filter(
             user_type__user_type_name='technician'
         ).select_related('user_type').prefetch_related('received_reviews')
-        
-        serializer = UserSerializer(technicians, many=True)
-        tech_data = serializer.data
-        
-        for tech in tech_data:
-            # Create embedding from JSON data
-            json_text = json.dumps(tech, ensure_ascii=False, indent=2)
-            embedding = get_embedding(json_text)
-            
-            key = f"technician_{tech['user_id']}"
-            self.embeddings[key] = embedding
-            self.metadata[key] = tech
+
+        # Process technicians in batches to reduce memory usage
+        batch_size = 10
+        total_technicians = technicians.count()
+        processed = 0
+
+        print(f"Processing {total_technicians} technicians in batches of {batch_size}...")
+
+        for i in range(0, total_technicians, batch_size):
+            batch_technicians = technicians[i:i + batch_size]
+
+            # Serialize only this batch
+            serializer = UserSerializer(batch_technicians, many=True)
+            tech_data = serializer.data
+
+            # Process each technician in the batch
+            for tech in tech_data:
+                # Create embedding from JSON data
+                json_text = json.dumps(tech, ensure_ascii=False, indent=2)
+                embedding = get_embedding(json_text)
+
+                key = f"technician_{tech['user_id']}"
+                self.embeddings[key] = embedding
+                self.metadata[key] = tech
+
+                processed += 1
+
+            # Memory cleanup after each batch
+            del serializer
+            del tech_data
+            del batch_technicians
+            gc.collect()
+
+            print(f"Processed {processed}/{total_technicians} technicians (batch {i//batch_size + 1})")
+
+        print(f"Completed technician embeddings: {processed} technicians processed")
     
     def _build_service_embeddings(self):
-        """Build embeddings for all services."""
+        """Build embeddings for all services using batch processing."""
+        import gc
         from services.serializers import ServiceSerializer
         from services.models import Service
-        
+
         print("Building service embeddings...")
-        
+
         # Get all services
         services = Service.objects.all()
-        serializer = ServiceSerializer(services, many=True)
-        service_data = serializer.data
-        
-        for service in service_data:
-            # Create embedding from JSON data
-            json_text = json.dumps(service, ensure_ascii=False, indent=2)
-            embedding = get_embedding(json_text)
-            
-            key = f"service_{service['service_id']}"
-            self.embeddings[key] = embedding
-            self.metadata[key] = service
+
+        # Process services in batches to reduce memory usage
+        batch_size = 20  # Services are typically fewer, so larger batch size
+        total_services = services.count()
+        processed = 0
+
+        print(f"Processing {total_services} services in batches of {batch_size}...")
+
+        for i in range(0, total_services, batch_size):
+            batch_services = services[i:i + batch_size]
+
+            # Serialize only this batch
+            serializer = ServiceSerializer(batch_services, many=True)
+            service_data = serializer.data
+
+            # Process each service in the batch
+            for service in service_data:
+                # Create embedding from JSON data
+                json_text = json.dumps(service, ensure_ascii=False, indent=2)
+                embedding = get_embedding(json_text)
+
+                key = f"service_{service['service_id']}"
+                self.embeddings[key] = embedding
+                self.metadata[key] = service
+
+                processed += 1
+
+            # Memory cleanup after each batch
+            del serializer
+            del service_data
+            del batch_services
+            gc.collect()
+
+            print(f"Processed {processed}/{total_services} services (batch {i//batch_size + 1})")
+
+        print(f"Completed service embeddings: {processed} services processed")
     
     def _build_order_embeddings(self):
-        """Build embeddings for all orders."""
+        """Build embeddings for all orders using batch processing to reduce memory usage."""
+        import gc
         from orders.serializers import PublicOrderSerializer
         from orders.models import Order
-        
+
         print("Building order embeddings...")
-        
+
         # Get all orders with optimized queries
         orders = Order.objects.select_related(
             'client_user', 'client_user__user_type', 'service'
@@ -110,18 +162,42 @@ class AIAssistantRAG:
             'project_offers__technician_user',
             'project_offers__technician_user__user_type'
         )
-        
-        serializer = PublicOrderSerializer(orders, many=True)
-        order_data = serializer.data
-        
-        for order in order_data:
-            # Create embedding from JSON data
-            json_text = json.dumps(order, ensure_ascii=False, indent=2)
-            embedding = get_embedding(json_text)
-            
-            key = f"order_{order['order_id']}"
-            self.embeddings[key] = embedding
-            self.metadata[key] = order
+
+        # Process orders in batches to reduce memory usage
+        batch_size = 5
+        total_orders = orders.count()
+        processed = 0
+
+        print(f"Processing {total_orders} orders in batches of {batch_size}...")
+
+        for i in range(0, total_orders, batch_size):
+            batch_orders = orders[i:i + batch_size]
+
+            # Serialize only this batch
+            serializer = PublicOrderSerializer(batch_orders, many=True)
+            order_data = serializer.data
+
+            # Process each order in the batch
+            for order in order_data:
+                # Create embedding from JSON data
+                json_text = json.dumps(order, ensure_ascii=False, indent=2)
+                embedding = get_embedding(json_text)
+
+                key = f"order_{order['order_id']}"
+                self.embeddings[key] = embedding
+                self.metadata[key] = order
+
+                processed += 1
+
+            # Memory cleanup after each batch
+            del serializer
+            del order_data
+            del batch_orders
+            gc.collect()
+
+            print(f"Processed {processed}/{total_orders} orders (batch {i//batch_size + 1})")
+
+        print(f"Completed order embeddings: {processed} orders processed")
     
     def save_index(self):
         """Save embeddings and metadata to disk."""
