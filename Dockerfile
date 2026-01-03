@@ -22,4 +22,4 @@ RUN pip install uv && python -m uv pip install --system --no-cache -r requiremen
 EXPOSE 8000
 
 # Run Django migrations, build AI embeddings, and start Gunicorn
-CMD ["sh", "-c", "python manage.py migrate && gunicorn srvana.wsgi:application --bind 0.0.0.0:8000"]
+CMD ["sh", "-c", "python manage.py migrate && gunicorn srvana.wsgi:application --bind 0.0.0.0:8000 --timeout 300"]
