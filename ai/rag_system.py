@@ -7,8 +7,9 @@ from .embedding_utils import get_embedding, cosine_similarity
 class AIAssistantRAG:
     INDEX_FILE = "ai_assistant_embeddings.npy"
     METADATA_FILE = "ai_assistant_metadata.json"
-    
-    def __init__(self):
+
+    def __init__(self, db_alias='default'):
+        self.db_alias = db_alias
         self.embeddings = {}  # key -> embedding vector
         self.metadata = {}    # key -> original data
         self.load_or_build_index()
@@ -54,11 +55,11 @@ class AIAssistantRAG:
         """Build embeddings for all technicians."""
         from users.serializers.user_serializers import UserSerializer
         from users.models import User
-        
+
         print("Building technician embeddings...")
-        
+
         # Get all technicians with optimized queries
-        technicians = User.objects.filter(
+        technicians = User.objects.using(self.db_alias).filter(
             user_type__user_type_name='technician'
         ).select_related('user_type').prefetch_related('received_reviews')
         
@@ -78,11 +79,11 @@ class AIAssistantRAG:
         """Build embeddings for all services."""
         from services.serializers import ServiceSerializer
         from services.models import Service
-        
+
         print("Building service embeddings...")
-        
+
         # Get all services
-        services = Service.objects.all()
+        services = Service.objects.using(self.db_alias).all()
         serializer = ServiceSerializer(services, many=True)
         service_data = serializer.data
         
@@ -99,11 +100,11 @@ class AIAssistantRAG:
         """Build embeddings for all orders."""
         from orders.serializers import PublicOrderSerializer
         from orders.models import Order
-        
+
         print("Building order embeddings...")
-        
+
         # Get all orders with optimized queries
-        orders = Order.objects.select_related(
+        orders = Order.objects.using(self.db_alias).select_related(
             'client_user', 'client_user__user_type', 'service'
         ).prefetch_related(
             'client_user__received_reviews',
