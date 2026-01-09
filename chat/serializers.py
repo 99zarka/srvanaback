@@ -6,28 +6,98 @@ from users.serializers.user_serializers import PublicUserSerializer
 from filesupload.serializers.fields import CloudinaryFileField
 
 class AIConversationMessageSerializer(serializers.ModelSerializer):
-    content = serializers.SerializerMethodField()
+    # Add parsed content fields using our enhanced functions
+    parsed_content = serializers.SerializerMethodField()
+    reply = serializers.SerializerMethodField()
+    is_irrelevant = serializers.SerializerMethodField()
+    project_data = serializers.SerializerMethodField()
+    offer_data = serializers.SerializerMethodField()
+    technician_recommendations = serializers.SerializerMethodField()
+    show_post_project = serializers.SerializerMethodField()
+    show_direct_hire = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
 
     class Meta:
         model = AIConversationMessage
-        fields = ['id', 'conversation', 'role', 'content', 'image_url', 'file_url', 'timestamp']
+        fields = [
+            'id', 'conversation', 'role', 'content', 'image_url', 'file_url', 'timestamp',
+            'parsed_content', 'reply', 'is_irrelevant', 'project_data', 'offer_data',
+            'technician_recommendations', 'show_post_project', 'show_direct_hire', 'can_edit'
+        ]
 
-    def get_content(self, obj):
-        """Parse JSON from message content and return structured data."""
-        if obj.content and isinstance(obj.content, str):
+    def get_parsed_content(self, obj):
+        """Parse JSON from message content using enhanced functions and return structured data."""
+        # Import our enhanced JSON parsing functions locally to avoid circular imports
+        from ai.generate_proposal_view import extract_json_from_response, validate_and_normalize_response
+        
+        if obj.role == 'assistant' and obj.content and isinstance(obj.content, str):
             try:
-                # Try to parse JSON from message content
-                json_match = re.search(r'\{[\s\S]*\}', obj.content)
-                if json_match:
-                    parsed = json.loads(json_match.group(0))
-                    if parsed.get('reply') and (parsed.get('project_data') or parsed.get('technician_recommendations')):
-                        return parsed
-                else:
-                    return obj.content
-            except (json.JSONDecodeError, KeyError):
-                # Not JSON or missing required fields, return None
-                pass
-        return None
+                # Use our enhanced JSON extraction function
+                extracted_json = extract_json_from_response(obj.content)
+                # Use our enhanced validation and normalization function
+                parsed_data = validate_and_normalize_response(extracted_json, obj.content)
+                return parsed_data
+            except Exception:
+                # Fallback to basic parsing if enhanced functions fail
+                try:
+                    json_match = re.search(r'\{[\s\S]*\}', obj.content)
+                    if json_match:
+                        parsed = json.loads(json_match.group(0))
+                        return validate_and_normalize_response(parsed, obj.content)
+                except (json.JSONDecodeError, KeyError):
+                    pass
+        
+        # Return minimal valid structure for non-assistant messages or parsing failures
+        return {
+            "reply": obj.content if obj.content else "",
+            "is_irrelevant": False,
+            "project_data": None,
+            "offer_data": None,
+            "technician_recommendations": [],
+            "show_post_project": False,
+            "show_direct_hire": False,
+            "can_edit": False
+        }
+
+    def get_reply(self, obj):
+        """Extract just the reply field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('reply', obj.content if obj.content else "")
+
+    def get_is_irrelevant(self, obj):
+        """Extract the is_irrelevant field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('is_irrelevant', False)
+
+    def get_project_data(self, obj):
+        """Extract the project_data field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('project_data', None)
+
+    def get_offer_data(self, obj):
+        """Extract the offer_data field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('offer_data', None)
+
+    def get_technician_recommendations(self, obj):
+        """Extract the technician_recommendations field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('technician_recommendations', [])
+
+    def get_show_post_project(self, obj):
+        """Extract the show_post_project field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('show_post_project', False)
+
+    def get_show_direct_hire(self, obj):
+        """Extract the show_direct_hire field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('show_direct_hire', False)
+
+    def get_can_edit(self, obj):
+        """Extract the can_edit field from parsed content."""
+        parsed = self.get_parsed_content(obj)
+        return parsed.get('can_edit', False)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

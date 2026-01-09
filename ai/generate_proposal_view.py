@@ -11,11 +11,147 @@ from orders.models import Order
 from users.models import User
 from chat.models import AIConversation, AIConversationMessage
 from django.shortcuts import get_object_or_404
-from chat.serializers import AIConversationMessageSerializer
 from ai.rag_system import AIAssistantRAG # Import AIAssistantRAG
 
 # This can be moved to a settings file
 AI_CHAT_MODEL = "openrouter-kwaipilot/kat-coder-pro:free"
+
+
+def extract_json_from_response(response_text):
+    """Enhanced JSON extraction with multiple strategies"""
+    import json
+    import re
+    
+    # Strategy 1: Look for JSON wrapped in curly braces
+    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+    if json_match:
+        json_str = json_match.group()
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+    
+    # Strategy 2: Look for JSON after specific markers
+    markers = ['{', '```json', 'JSON:', 'Response:', 'Here is the JSON:']
+    for marker in markers:
+        if marker in response_text:
+            # Find the position after the marker
+            start_pos = response_text.find(marker) + len(marker)
+            # Extract everything from that position
+            potential_json = response_text[start_pos:].strip()
+            # Try to find JSON in the remaining text
+            json_match = re.search(r'\{.*\}', potential_json, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError:
+                    continue
+    
+    # Strategy 3: Try to extract JSON from code blocks
+    code_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+    if code_block_match:
+        try:
+            return json.loads(code_block_match.group(1))
+        except json.JSONDecodeError:
+            pass
+    
+    # Strategy 4: Try to find JSON with proper formatting
+    # Look for lines that look like JSON key-value pairs
+    lines = response_text.split('\n')
+    json_lines = []
+    brace_count = 0
+    in_json = False
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith('{'):
+            in_json = True
+            json_lines.append(line)
+            brace_count += line.count('{') - line.count('}')
+        elif in_json:
+            json_lines.append(line)
+            brace_count += line.count('{') - line.count('}')
+            if brace_count == 0 and line.endswith('}'):
+                break
+    
+    if json_lines:
+        try:
+            json_str = '\n'.join(json_lines)
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            pass
+    
+    # If all strategies fail, return None
+    return None
+
+
+def validate_and_normalize_response(parsed_json, original_response):
+    """Validate and normalize the JSON response"""
+    import json
+    
+    if not parsed_json:
+        # If no JSON was parsed, create a minimal valid response
+        return {
+            "reply": original_response,
+            "is_irrelevant": False,
+            "project_data": None,
+            "offer_data": None,
+            "technician_recommendations": [],
+            "show_post_project": False,
+            "show_direct_hire": False,
+            "can_edit": False
+        }
+    
+    # Define the expected schema with default values
+    expected_schema = {
+        "reply": str,
+        "is_irrelevant": bool,
+        "project_data": (dict, type(None)),
+        "offer_data": (dict, type(None)),
+        "technician_recommendations": list,
+        "show_post_project": bool,
+        "show_direct_hire": bool,
+        "can_edit": bool
+    }
+    
+    normalized_response = {}
+    
+    # Validate and normalize each field
+    for field, expected_type in expected_schema.items():
+        if field in parsed_json:
+            value = parsed_json[field]
+            
+            # Type validation and conversion
+            if expected_type == str:
+                normalized_response[field] = str(value) if value is not None else ""
+            elif expected_type == bool:
+                normalized_response[field] = bool(value) if value is not None else False
+            elif expected_type == list:
+                normalized_response[field] = list(value) if isinstance(value, list) else []
+            elif expected_type == (dict, type(None)):
+                if value is None or isinstance(value, dict):
+                    normalized_response[field] = value
+                else:
+                    normalized_response[field] = None
+            else:
+                normalized_response[field] = value
+        else:
+            # Set default values for missing fields
+            if expected_type == str:
+                normalized_response[field] = ""
+            elif expected_type == bool:
+                normalized_response[field] = False
+            elif expected_type == list:
+                normalized_response[field] = []
+            elif expected_type == (dict, type(None)):
+                normalized_response[field] = None
+    
+    # Ensure reply field has content
+    if not normalized_response["reply"] and original_response:
+        normalized_response["reply"] = original_response
+    
+    return normalized_response
 
 class ChatHistoryView(APIView):
     """
@@ -26,10 +162,48 @@ class ChatHistoryView(APIView):
     @swagger_auto_schema(
         operation_description="Get the message history for the current active conversation. Supports both authenticated and anonymous users. Returns messages ordered by timestamp.",
         responses={
-            200: openapi.Response('A list of messages in the conversation.', AIConversationMessageSerializer(many=True)),
+            200: openapi.Response('A list of messages in the conversation.', openapi.Schema(
+                type=openapi.TYPE_ARRAY,
+                items=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'conversation': openapi.Schema(type=openapi.TYPE_INTEGER),
+                        'role': openapi.Schema(type=openapi.TYPE_STRING),
+                        'content': openapi.Schema(type=openapi.TYPE_STRING),
+                        'image_url': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                        'file_url': openapi.Schema(type=openapi.TYPE_STRING, nullable=True),
+                        'timestamp': openapi.Schema(type=openapi.TYPE_STRING),
+                        'parsed_content': openapi.Schema(
+                            type=openapi.TYPE_OBJECT,
+                            properties={
+                                'reply': openapi.Schema(type=openapi.TYPE_STRING),
+                                'is_irrelevant': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                                'project_data': openapi.Schema(type=openapi.TYPE_OBJECT, nullable=True),
+                                'offer_data': openapi.Schema(type=openapi.TYPE_OBJECT, nullable=True),
+                                'technician_recommendations': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT)),
+                                'show_post_project': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                                'show_direct_hire': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                                'can_edit': openapi.Schema(type=openapi.TYPE_BOOLEAN)
+                            }
+                        ),
+                        'reply': openapi.Schema(type=openapi.TYPE_STRING),
+                        'is_irrelevant': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'project_data': openapi.Schema(type=openapi.TYPE_OBJECT, nullable=True),
+                        'offer_data': openapi.Schema(type=openapi.TYPE_OBJECT, nullable=True),
+                        'technician_recommendations': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Schema(type=openapi.TYPE_OBJECT)),
+                        'show_post_project': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'show_direct_hire': openapi.Schema(type=openapi.TYPE_BOOLEAN),
+                        'can_edit': openapi.Schema(type=openapi.TYPE_BOOLEAN)
+                    }
+                )
+            )),
         }
     )
     def get(self, request, *args, **kwargs):
+        # Import serializer locally to avoid circular imports
+        from chat.serializers import AIConversationMessageSerializer
+        
         conversation = None
         if request.user.is_authenticated:
             conversation = AIConversation.objects.filter(user=request.user, is_active=True).first()
@@ -70,6 +244,7 @@ class ChatHistoryView(APIView):
                 type=openapi.TYPE_OBJECT,
                 properties={
                     'reply': openapi.Schema(type=openapi.TYPE_STRING, description='AI response text'),
+                    'is_irrelevant': openapi.Schema(type=openapi.TYPE_BOOLEAN, description='Indicates if the user input was irrelevant to the service marketplace'),
                     'project_data': openapi.Schema(
                         type=openapi.TYPE_OBJECT,
                         properties={
@@ -182,10 +357,34 @@ def chat(request):
             model_to_use = "gemini-2.5-flash"
 
         try:
-            # Enhanced prompt for structured response
+            # Enhanced prompt for structured response with strict JSON requirements
             enhanced_prompt = f"""You are Srvana Assistant, an expert in a services marketplace exclusively for Egypt.
 
-Based on the user's message and conversation history, perform these tasks:
+CRITICAL JSON REQUIREMENTS:
+1. Return ONLY valid JSON format - NO additional text, explanations, or formatting before or after
+2. The response MUST be parseable as valid JSON
+3. Use proper JSON syntax with double quotes for all strings
+4. Do not include any markdown formatting, code blocks, or text outside the JSON structure
+5. If you cannot provide a complete JSON response, return a minimal valid JSON structure
+
+IMPORTANT: This platform is exclusively for Egypt and serves Egyptian users only. All currency values must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only. Return API-ready JSON structure for direct form submission.
+
+INPUT VALIDATION:
+Before processing the user's request, carefully analyze if the input is relevant to the Egyptian services marketplace context. Consider the following as IRRELEVANT inputs:
+- General knowledge questions unrelated to services
+- Requests for information outside Egypt
+- Non-service-related topics (e.g., weather, news, general advice)
+- Requests for services not available in the marketplace
+- Completely off-topic conversations
+
+If the input is IRRELEVANT:
+1. Politely inform the user that the request is outside the scope of the service marketplace
+2. Redirect them back to the Egyptian services marketplace context
+3. Maintain a helpful and professional tone
+4. Still return the required JSON structure for API compatibility
+
+If the input is RELEVANT:
+Proceed with the following tasks:
 
 1. Provide a helpful response to the user's query
 2. Extract project requirements if applicable for API integration:
@@ -198,10 +397,11 @@ Based on the user's message and conversation history, perform these tasks:
 IMPORTANT: If the user wants to create a project, ensure ALL required fields are complete and not null. If critical information is missing, ask the user specific questions to gather the missing data before proceeding with project creation. Do not leave any critical fields as null if the user has provided the information or if it can be reasonably inferred from the conversation.
 
 3. If a technician is needed, use the provided context to recommend suitable technicians
-4. Return the response in this JSON format for direct API integration:
+4. Return the response in this EXACT JSON format for direct API integration:
 
 {{
   "reply": "Your response here",
+  "is_irrelevant": true_or_false,
   "project_data": {{
     "service_id": service_id_number_or_null,
     "problem_description": "extracted problem description",
@@ -242,13 +442,43 @@ IMPORTANT: If the user wants to create a project, ensure ALL required fields are
   "can_edit": true_or_false
 }}
 
-IMPORTANT: This platform is exclusively for Egypt and serves Egyptian users only. All currency values must be in Egyptian Pounds (EGP) and all locations must be within Egyptian governorates only. Return API-ready JSON structure for direct form submission.
+EXAMPLE OF CORRECT JSON RESPONSE:
+{{
+  "reply": "I can help you find a plumber in Cairo. Based on your location and the issue described, I recommend...",
+  "is_irrelevant": false,
+  "project_data": {{
+    "service_id": 1,
+    "problem_description": "Leaking kitchen sink",
+    "requested_location": "Cairo, Downtown",
+    "scheduled_date": "2024-01-15",
+    "scheduled_time_start": "09:00",
+    "scheduled_time_end": "17:00",
+    "order_type": "service_request",
+    "expected_price": 500
+  }},
+  "offer_data": null,
+  "technician_recommendations": [
+    {{
+      "id": 123,
+      "name": "Ahmed Mohamed",
+      "rating": 4.8,
+      "specialization": "Plumbing",
+      "location": "Cairo",
+      "experience_years": 8,
+      "jobs_completed": 150,
+      "reasoning": "Experienced plumber with excellent ratings in your area"
+    }}
+  ],
+  "show_post_project": true,
+  "show_direct_hire": false,
+  "can_edit": true
+}}
 
 User Message: {prompt}
 
 Context: {relevant_context}
 
-Return ONLY the JSON response, no additional text before or after."""
+RETURN ONLY THE JSON RESPONSE WITH NO ADDITIONAL TEXT OR EXPLANATIONS."""
 
             ai_response = AIClient.call_llm(
                 model=model_to_use,
@@ -267,22 +497,14 @@ Return ONLY the JSON response, no additional text before or after."""
                 content=ai_response
             )
 
-            # Parse the JSON response
+            # Parse the JSON response with enhanced logic
             import json
-            import re
             
-            # Extract JSON from response
-            json_match = re.search(r'\{.*\}', ai_response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                try:
-                    response_data = json.loads(json_str)
-                except json.JSONDecodeError:
-                    # Fallback to simple response if JSON parsing fails
-                    response_data = {"reply": ai_response}
-            else:
-                # Fallback to simple response if no JSON found
-                response_data = {"reply": ai_response}
+            # Extract JSON using enhanced logic
+            extracted_json = extract_json_from_response(ai_response)
+            
+            # Validate and normalize the response
+            response_data = validate_and_normalize_response(extracted_json, ai_response)
 
             return Response(response_data, status=status.HTTP_200_OK)
         except Exception as e:
