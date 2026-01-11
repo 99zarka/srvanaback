@@ -218,6 +218,11 @@ class UserViewSet(OwnerFilteredQuerysetMixin, viewsets.ModelViewSet):
         # Extract order and technician from the created offer for notification and response
         order = offer.order
         
+        # Ensure the order status is set to AWAITING_TECHNICIAN_RESPONSE
+        if order.order_status != 'AWAITING_TECHNICIAN_RESPONSE':
+            order.order_status = 'AWAITING_TECHNICIAN_RESPONSE'
+            order.save(update_fields=['order_status'])
+        
         # Send notification to the technician
         try:
             create_notification(
