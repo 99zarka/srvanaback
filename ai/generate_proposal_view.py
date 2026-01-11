@@ -289,15 +289,14 @@ def chat(request):
     Handles chat interactions with the AI assistant for both authenticated and anonymous users.
     Enhanced to provide project data extraction and technician recommendations.
     """
-    prompt = request.data.get('prompt')
-    start_new = request.data.get('start_new', False) # Moved up for conditional check
-
-    if not prompt and not start_new: # Only require prompt if not starting a new conversation
-        return Response({"error": "Prompt is required."}, status=status.HTTP_400_BAD_REQUEST)
-
+    prompt = request.data.get('prompt', '')
     image_url = request.data.get('image_url')
     file_url = request.data.get('file_url')
     start_new = request.data.get('start_new', False)
+
+    # Only require content if there's no image or file to process
+    if not prompt and not image_url and not file_url:
+        return Response({"error": "Prompt is required when no image or file is provided."}, status=status.HTTP_400_BAD_REQUEST)
     
     user = request.user if request.user.is_authenticated else None
     conversation = None
