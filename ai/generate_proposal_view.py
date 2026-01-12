@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404
 from ai.rag_system import AIAssistantRAG # Import AIAssistantRAG
 
 # This can be moved to a settings file
-AI_CHAT_MODEL = "openrouter-xiaomi/mimo-v2-flash:free"
+AI_CHAT_MODEL = "openrouter-mistralai/devstral-2512:free"
 
 
 def extract_json_from_response(response_text):
@@ -637,7 +637,7 @@ TECHNICIAN PROFILE IN ARABIC:
 Please provide a concise, professional proposal in Arabic (maximum 100 words) that showcases the technician's expertise and addresses the project requirements, along with a suggested price that reflects the technician's experience and market rates. The proposal should be in Arabic language only, maximum 100 words, professional and convincing. All prices must be in Egyptian Pounds (EGP) and all references must be to Egyptian locations only."""
 
         # Use the AI client to generate the proposal
-        model = "openrouter-xiaomi/mimo-v2-flash:free"
+        model = "openrouter-mistralai/devstral-2512:free"
         response_content = AIClient.call_llm(model, prompt)
 
         # Parse the response to extract proposal and price
