@@ -449,7 +449,7 @@ IMPORTANT: If the user wants to create a project, ensure ALL required fields are
     }}
   ],
   "show_post_project": true_or_false only true when project data is 75% ready or more,
-  "show_direct_hire": true_or_false,
+  "show_direct_hire": true_or_false it works with offer_data, it's a flag to show it,
   "can_edit": true_or_false
 }}
 
