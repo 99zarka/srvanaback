@@ -295,7 +295,7 @@ def chat(request):
     start_new = request.data.get('start_new', False)
 
     # Only require content if there's no image or file to process
-    if not prompt and not image_url and not file_url:
+    if not prompt and not image_url and not file_url and not start_new:
         return Response({"error": "Prompt is required when no image or file is provided."}, status=status.HTTP_400_BAD_REQUEST)
     
     user = request.user if request.user.is_authenticated else None
